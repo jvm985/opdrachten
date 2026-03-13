@@ -24,7 +24,7 @@ export default function PrintExam() {
     <div className="print-container">
       <style>{`
         @media screen {
-          body { background: #f0f0f0; padding: 40px; }
+          body { background: #f0f0f0; padding: 40px; margin: 0; }
           .print-container { 
             background: white; 
             width: 210mm; 
@@ -32,65 +32,68 @@ export default function PrintExam() {
             margin: 0 auto; 
             padding: 20mm; 
             box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            box-sizing: border-box;
           }
         }
         @media print {
-          @page { size: A4; margin: 15mm; }
+          @page { size: A4; margin: 10mm; }
+          
+          /* Verberg ALLES behalve de print container */
           html, body { 
             background: white !important; 
-            color: black !important;
             margin: 0 !important; 
             padding: 0 !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+            height: auto !important;
+            overflow: visible !important;
           }
-          /* Hide everything in the app except our print container */
-          #root > *:not(.print-container),
-          .app-container > *:not(.print-container),
-          .no-print { 
-            display: none !important; 
+          
+          body * {
+            visibility: hidden;
           }
-          .app-container {
-            max-width: none !important;
-            padding: 0 !important;
+          
+          .print-container, .print-container * {
+            visibility: visible;
+          }
+          
+          .print-container {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100% !important;
             margin: 0 !important;
-          }
-          .print-container { 
-            width: 100% !important; 
-            margin: 0 !important; 
             padding: 0 !important;
             box-shadow: none !important;
-            visibility: visible !important;
             display: block !important;
-            position: static !important;
           }
+
+          .no-print { display: none !important; }
+          
+          /* Forceer zwart op wit en zet kleuren aan */
           * { 
-            animation: none !important; 
-            transition: none !important; 
-            opacity: 1 !important; 
-            transform: none !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
             color: black !important;
-            background-color: transparent !important;
+            background: transparent !important;
+            animation: none !important;
+            transition: none !important;
           }
-          /* Ensure SVG colors still print */
+          
           svg path { fill: #8b1d41 !important; }
+          .score-table th { background: #f5f5f5 !important; }
+          .badge { border: 1px solid #000 !important; }
         }
+        
         .print-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; }
-        .school-logo { width: 150px; }
         .top-info { text-align: right; font-size: 12px; font-weight: bold; }
-        
-        .exam-title { font-size: 24px; font-weight: bold; margin: 20px 0; border-bottom: 2px solid #000; padding-bottom: 10px; }
-        
+        .exam-title { font-size: 24px; font-weight: bold; margin: 20px 0; border-bottom: 2px solid #000; padding-bottom: 10px; text-transform: uppercase; }
         .student-info { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; font-size: 14px; }
         .info-field { border-bottom: 1px solid #000; padding: 5px 0; margin-bottom: 10px; display: flex; }
         .info-label { font-weight: bold; margin-right: 10px; min-width: 60px; }
         .info-line { flex: 1; }
-
         .score-table { width: 100%; border-collapse: collapse; margin-bottom: 40px; font-size: 12px; }
         .score-table th, .score-table td { border: 1px solid black; padding: 8px; text-align: center; }
-        .score-table th { background: #f5f5f5 !important; -webkit-print-color-adjust: exact; }
-        
-        .question-item { margin-bottom: 35px; position: relative; page-break-inside: avoid; }
+        .score-table th { background: #f5f5f5; }
+        .question-item { margin-bottom: 40px; position: relative; page-break-inside: avoid; }
         .points-box { 
           position: absolute; 
           left: -45px; 
@@ -104,24 +107,21 @@ export default function PrintExam() {
           font-weight: bold;
           font-size: 14px;
         }
-        .question-text { font-size: 16px; font-weight: bold; margin-bottom: 15px; padding-left: 0; color: black; }
-        .question-subtext { font-style: italic; font-size: 13px; color: #444; margin-bottom: 15px; }
-        
-        .answer-lines { margin-top: 15px; }
-        .answer-line { border-bottom: 1px solid #ccc; height: 30px; margin-bottom: 5px; }
-        
+        .question-text { font-size: 16px; font-weight: bold; margin-bottom: 15px; color: black; }
+        .answer-line { border-bottom: 1px solid #ccc; height: 35px; margin-bottom: 5px; }
         .mc-option { display: flex; align-items: center; margin-bottom: 10px; }
         .mc-box { width: 18px; height: 18px; border: 1px solid black; margin-right: 12px; }
-        
-        .footer { position: fixed; bottom: 0; width: 100%; text-align: center; font-size: 10px; color: #888; }
       `}</style>
 
       <div className="print-header">
         <div className="school-logo" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
            <svg width="60" height="60" viewBox="0 0 100 100">
-              <path d="M50 90 C50 70 30 50 30 30 C30 10 50 10 50 30 C50 10 70 10 70 30 C70 50 50 70 50 90" fill="#8b1d41" />
-              <path d="M50 90 C40 75 10 65 10 40 C10 20 30 20 40 35 C30 15 50 15 50 35" fill="#8b1d41" transform="rotate(-15 50 90)" />
-              <path d="M50 90 C60 75 90 65 90 40 C90 20 70 20 60 35 C70 15 50 15 50 35" fill="#8b1d41" transform="rotate(15 50 90)" />
+              {/* Center teardrop */}
+              <path d="M50 90 C50 70 35 55 35 35 C35 15 50 15 50 35 C50 15 65 15 65 35 C65 55 50 70 50 90" fill="#8b1d41" />
+              {/* Left teardrop */}
+              <path d="M45 88 C35 75 10 65 10 40 C10 20 30 20 40 35 C30 15 45 15 45 35" fill="#8b1d41" transform="rotate(-20 50 90)" />
+              {/* Right teardrop */}
+              <path d="M55 88 C65 75 90 65 90 40 C90 20 70 20 60 35 C70 15 55 15 55 35" fill="#8b1d41" transform="rotate(20 50 90)" />
            </svg>
            <div style={{ color: '#444', fontWeight: 'bold', fontSize: '20px', lineHeight: '1.1', fontFamily: 'sans-serif' }}>
               Atheneum<br/><span style={{ fontSize: '18px', fontWeight: 'normal' }}>Kapellen</span>
@@ -252,28 +252,40 @@ export default function PrintExam() {
               )}
 
               {q.type === 'ordering' && (
-                <div style={{ display: 'flex', flexDirection: q.orderDirection === 'horizontal' ? 'row' : 'column', flexWrap: 'wrap', gap: '15px', marginTop: '15px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
+                  <p style={{ fontSize: '12px', fontStyle: 'italic', marginBottom: '5px' }}>Zet in de juiste volgorde door een nummer (1, 2, 3...) in het vakje te schrijven:</p>
                   {q.orderItems?.map((item: any, i: number) => (
-                    <div key={i} style={{ padding: '12px 20px', border: '1px solid black', borderRadius: '12px', minWidth: '120px', fontSize: '15px', textAlign: 'center' }}>
-                      {item}
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                      <div style={{ width: '30px', height: '30px', border: '1px solid black', borderRadius: '4px' }}></div>
+                      <div style={{ padding: '10px 15px', border: '1px solid #eee', borderRadius: '8px', flex: 1, fontSize: '15px' }}>
+                        {item}
+                      </div>
                     </div>
                   ))}
                 </div>
               )}
 
               {q.type === 'matching' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '15px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {q.matchingPairs?.map((p: any) => (
-                      <div key={p.id} style={{ padding: '15px 20px', border: '1px solid black', borderRadius: '12px', fontSize: '15px', fontWeight: 'bold', background: '#f9f9f9' }}>
-                        {p.left}
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {q.matchingPairs?.map((p: any) => (
-                      <div key={p.id} style={{ height: '52px', borderBottom: '1px solid black', margin: '5px 0' }}></div>
-                    ))}
+                <div style={{ marginTop: '15px' }}>
+                  <p style={{ fontSize: '12px', fontStyle: 'italic', marginBottom: '10px' }}>Trek lijnen tussen de bijbehorende termen of schrijf de juiste term in de kolom rechts:</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '60px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 'bold', borderBottom: '1px solid black', paddingBottom: '5px' }}>TERMEN</div>
+                      {q.matchingPairs?.map((p: any) => (
+                        <div key={p.id} style={{ padding: '12px 15px', border: '1px solid black', borderRadius: '8px', fontSize: '14px', background: '#f9f9f9', minHeight: '45px', display: 'flex', alignItems: 'center' }}>
+                          {p.left}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 'bold', borderBottom: '1px solid black', paddingBottom: '5px' }}>PAREN</div>
+                      {/* We maken een kopie van de rechterkant en husselen deze */}
+                      {[...(q.matchingPairs || [])].sort(() => Math.random() - 0.5).map((p: any) => (
+                        <div key={p.id} style={{ padding: '12px 15px', border: '1px solid black', borderRadius: '8px', fontSize: '14px', minHeight: '45px', display: 'flex', alignItems: 'center' }}>
+                          {p.right}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
