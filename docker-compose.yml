@@ -2,11 +2,24 @@ services:
   api:
     build: ./server
     container_name: exam-api
-    ports:
-      - "3001:3001"
+    expose:
+      - "3001"
     volumes:
       - ./server/database.sqlite:/app/database.sqlite
       - ./server/public/photos:/app/public/photos
     environment:
       - NODE_ENV=production
+    restart: always
+
+  frontend:
+    image: nginx:alpine
+    container_name: exam-frontend
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/production.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./client-teacher/dist:/usr/share/nginx/html/teacher:ro
+      - ./client-student/dist:/usr/share/nginx/html/student:ro
+    depends_on:
+      - api
     restart: always
