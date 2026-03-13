@@ -1,46 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Edit3, ArrowLeft, Save, ChevronLeft, ChevronRight, X, Image as ImageIcon, MapPin, Database, Search, Copy, HardDrive, Lock, LayoutList, Layout, Eye, Printer, CheckCircle2, Circle, Shield, LogOut, Play, Users, BarChart3, MoreVertical } from 'lucide-react';
+import { Plus, Trash2, Edit3, ArrowLeft, Save, X, Database, Search, Copy, Eye, Printer, Play, BarChart3, MoreVertical, Lock } from 'lucide-react';
 import { TopNav } from '../components/TopNav';
 import { QuestionEditor } from '../components/QuestionEditor';
-
-interface Location { id: string; label: string; x: number; y: number; }
-interface DefinitionPair { id: string; definition: string; term: string; }
-interface MatchingPair { id: string; left: string; right: string; }
-interface SubQuestion { id: string; text: string; points: number; }
-
-interface Question {
-  id: string;
-  type: 'open' | 'multiple-choice' | 'true-false' | 'map' | 'definitions' | 'matching' | 'ordering' | 'image-analysis';
-  text: string;
-  points: number;
-  options?: string[];
-  correctAnswer: string;
-  image?: string;
-  locations?: Location[];
-  pairs?: DefinitionPair[];
-  matchingPairs?: MatchingPair[];
-  orderItems?: string[];
-  orderDirection?: 'vertical' | 'horizontal';
-  subQuestions?: SubQuestion[];
-  explainIfFalse?: boolean;
-  labels?: string[];
-}
-
-interface Exam {
-  id: string;
-  title: string;
-  exam_key: string;
-  questions: Question[];
-  labels: string[];
-  type: 'taak' | 'toets' | 'examen' | 'formulier';
-  isGraded: boolean;
-  requireFullscreen: boolean;
-  detectTabSwitch: boolean;
-  submissionCount: number;
-  hasSubmissions: boolean;
-  created_at: string;
-}
+import type { Question, Exam } from '../types';
 
 export default function TeacherDashboard() {
   const navigate = useNavigate();
@@ -50,7 +13,7 @@ export default function TeacherDashboard() {
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [viewMode, setViewMode] = useState<'single' | 'list'>('single');
+  const [viewMode] = useState<'single' | 'list'>('single');
   const [showBank, setShowBank] = useState(false);
   const [bankQuestions, setBankQuestions] = useState<Question[]>([]);
   const [bankSearch, setBankSearch] = useState('');
@@ -69,6 +32,23 @@ export default function TeacherDashboard() {
   const [isSavingToBank, setIsSavingToBank] = useState<string | null>(null);
 
   const [selectedExamForLive, setSelectedExamForLive] = useState<Exam | null>(null);
+
+  const dropdownItemStyle: React.CSSProperties = {
+    width: '100%',
+    textAlign: 'left',
+    background: 'none',
+    border: 'none',
+    padding: '10px 12px',
+    fontSize: '14px',
+    fontWeight: '500',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    borderRadius: '8px',
+    transition: 'background 0.2s',
+    color: 'inherit'
+  };
 
   useEffect(() => {
     const handleClickOutside = () => setOpenMenuId(null);
@@ -243,26 +223,9 @@ export default function TeacherDashboard() {
     viewMode, hasSubmissions, isSavingToBank, handleRemoveQuestion, handleUpdateQuestion, handleMapClick, handleImageUpload, saveQuestionToBank
   };
 
-  const dropdownItemStyle: React.CSSProperties = {
-    width: '100%',
-    textAlign: 'left',
-    background: 'none',
-    border: 'none',
-    padding: '10px 12px',
-    fontSize: '14px',
-    fontWeight: '500',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    borderRadius: '8px',
-    transition: 'background 0.2s',
-    color: 'inherit'
-  };
-
   return (
     <div style={{ minHeight: '100vh', background: '#f5f5f7', paddingTop: '72px' }}>
-      <TopNav isEditing={isEditing} user={user} onSave={() => handleSaveExam()} onPreview={handlePreview} isLoading={isLoading} />
+      <TopNav isEditing={isEditing} user={user} />
       
       {isEditing ? (
         <div style={{ maxWidth: '800px', margin: '0 auto', padding: '48px 20px' }}>

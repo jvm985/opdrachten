@@ -1,26 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trash2, Search, Tag, Database, Filter, Edit3, Save, X } from 'lucide-react';
+import { ArrowLeft, Trash2, Search, Edit3, Save } from 'lucide-react';
 import { TopNav } from '../components/TopNav';
 import { QuestionEditor } from '../components/QuestionEditor';
-
-interface Question {
-  id: string;
-  type: 'open' | 'multiple-choice' | 'true-false' | 'map' | 'definitions' | 'matching' | 'ordering' | 'image-analysis';
-  text: string;
-  points: number;
-  labels: string[];
-  data: string;
-  // Fields for specific types
-  options?: string[];
-  correctAnswer?: string;
-  image?: string;
-  locations?: any[];
-  pairs?: any[];
-  matchingPairs?: any[];
-  orderItems?: string[];
-  subQuestions?: any[];
-}
+import type { Question } from '../types';
 
 export default function TeacherBank() {
   const navigate = useNavigate();

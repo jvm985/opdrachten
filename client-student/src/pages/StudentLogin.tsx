@@ -6,13 +6,11 @@ import { GoogleLogin } from '@react-oauth/google';
 export default function StudentLogin() {
   const [examKey, setExamKey] = useState('');
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleGoogleSuccess = async (response: any) => {
     if (!examKey) return setError('Vul eerst de examen-sleutel in');
     
-    setIsLoading(true);
     setError('');
     
     try {
@@ -20,7 +18,6 @@ export default function StudentLogin() {
       const examRes = await fetch(`/api/exams/${examKey.toUpperCase()}`);
       if (!examRes.ok) {
         setError('Ongeldige examen-sleutel');
-        setIsLoading(false);
         return;
       }
 
@@ -43,8 +40,6 @@ export default function StudentLogin() {
     } catch (e) { 
       console.error(e); 
       setError('Er is een fout opgetreden.');
-    } finally {
-      setIsLoading(false);
     }
   };
 

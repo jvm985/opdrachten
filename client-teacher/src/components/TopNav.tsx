@@ -1,7 +1,13 @@
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Save, Eye, LogOut } from 'lucide-react';
+import { Shield, LogOut } from 'lucide-react';
 
-export const TopNav = ({ isEditing, user, onSave, onPreview, isLoading }: any) => {
+interface TopNavProps {
+  isEditing?: boolean;
+  user: any;
+}
+
+export const TopNav: React.FC<TopNavProps> = ({ isEditing, user }) => {
   const navigate = useNavigate();
   return (
     <nav style={{ 

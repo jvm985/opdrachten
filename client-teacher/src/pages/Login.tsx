@@ -5,11 +5,9 @@ import { GoogleLogin } from '@react-oauth/google';
 
 export default function Login() {
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleGoogleSuccess = async (response: any) => {
-    setIsLoading(true);
     setError('');
     try {
       const res = await fetch('/api/auth/google', {
@@ -27,8 +25,6 @@ export default function Login() {
     } catch (e) { 
       console.error(e); 
       setError('Er is een fout opgetreden bij de verbinding met de server.');
-    } finally {
-      setIsLoading(false);
     }
   };
 

@@ -1,28 +1,6 @@
 import React from 'react';
-import { Trash2, Database, ImageIcon, MapPin, CheckCircle2, Circle, Plus, X } from 'lucide-react';
-
-interface Location { id: string; label: string; x: number; y: number; }
-interface DefinitionPair { id: string; definition: string; term: string; }
-interface MatchingPair { id: string; left: string; right: string; }
-interface SubQuestion { id: string; text: string; points: number; }
-
-interface Question {
-  id: string;
-  type: 'open' | 'multiple-choice' | 'true-false' | 'map' | 'definitions' | 'matching' | 'ordering' | 'image-analysis';
-  text: string;
-  points: number;
-  options?: string[];
-  correctAnswer: string;
-  image?: string;
-  locations?: Location[];
-  pairs?: DefinitionPair[];
-  matchingPairs?: MatchingPair[];
-  orderItems?: string[];
-  orderDirection?: 'vertical' | 'horizontal';
-  subQuestions?: SubQuestion[];
-  explainIfFalse?: boolean;
-  labels?: string[];
-}
+import { Trash2, Database, MapPin, CheckCircle2, Circle, Plus, X } from 'lucide-react';
+import type { Question } from '../types';
 
 interface QuestionEditorProps {
   q: Question;

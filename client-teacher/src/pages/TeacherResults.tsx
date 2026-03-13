@@ -1,82 +1,74 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, HelpCircle, Download, Save, MapPin, Trash2, LayoutList, Layout, ChevronLeft, ChevronRight, User, List, CheckCircle2, AlertTriangle, Table as TableIcon, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, User, List, Table as TableIcon, CheckCircle, XCircle, MapPin, Save } from 'lucide-react';
 import { TopNav } from '../components/TopNav';
-
-interface Submission {
-  id: string;
-  student_name: string;
-  student_klas: string;
-  answers: Record<string, any>;
-  scores: Record<string, any>;
-  submitted_at: string;
-}
-
-interface Question {
-  id: string;
-  type: 'open' | 'multiple-choice' | 'true-false' | 'map' | 'definitions' | 'matching' | 'ordering' | 'image-analysis';
-  text: string;
-  correctAnswer: string;
-  points: number;
-  options?: string[];
-  image?: string;
-  locations?: { id: string, label: string, x: number, y: number }[];
-  pairs?: { id: string, definition: string, term: string }[];
-  matchingPairs?: { id: string, left: string, right: string }[];
-  orderItems?: string[];
-  subQuestions?: { id: string, text: string, points: number }[];
-}
+import type { Question, Exam, Submission } from '../types';
 
 export default function TeacherResults() {
   const { examId } = useParams();
   const navigate = useNavigate();
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
-  
+  const [exam, setExam] = useState<Exam | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [exam, setExam] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'individual' | 'question' | 'table'>('individual');
-  
   const [selectedStudentIdx, setSelectedStudentIdx] = useState(0);
   const [selectedQuestionIdx, setSelectedQuestionIdx] = useState(0);
   
-  const [allManualScores, setAllManualScores] = useState<Record<string, Record<string, any>>>({});
+  // Scoring state
+  const [allManualScores, setAllManualScores] = useState<Record<string, any>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   useEffect(() => {
-    fetchSubmissions();
-    if (user.id) {
-      fetch(`/api/teacher/exams?teacherId=${user.id}`)
-        .then(res => res.json())
-        .then(exams => {
-          const found = exams.find((e: any) => e.id === examId);
-          if (found) setExam(found);
-        });
-    }
-  }, [examId]);
+    if (user.role !== 'teacher') { navigate('/login'); return; }
+    fetchData();
 
-  useEffect(() => {
-    const scoresMap: Record<string, Record<string, any>> = {};
-    submissions.forEach(sub => {
-      scoresMap[sub.id] = sub.scores || {};
-    });
-    setAllManualScores(scoresMap);
-    setHasUnsavedChanges(false);
-  }, [submissions]);
-
-  useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (hasUnsavedChanges) { e.preventDefault(); e.returnValue = ''; }
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [hasUnsavedChanges]);
+  }, [hasUnsavedChanges, examId]);
+
+  const fetchData = async () => {
+    try {
+      const [examRes, subsRes] = await Promise.all([
+        fetch(`/api/exams/details/${examId}`),
+        fetch(`/api/exams/${examId}/submissions`)
+      ]);
+      const examData = await examRes.json();
+      const subsData = await subsRes.json();
+      
+      setExam(examData);
+      setSubmissions(subsData);
+      
+      // Initialize scores state from database
+      const initialScores: Record<string, any> = {};
+      subsData.forEach((s: Submission) => {
+        initialScores[s.id] = s.scores || {};
+      });
+      setAllManualScores(initialScores);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchSubmissions = async () => {
     try {
       const res = await fetch(`/api/exams/${examId}/submissions`);
       const data = await res.json();
       setSubmissions(Array.isArray(data) ? data : []);
+      const updatedScores: Record<string, any> = {};
+      data.forEach((s: Submission) => {
+        updatedScores[s.id] = s.scores || {};
+      });
+      setAllManualScores(updatedScores);
     } catch (e) { console.error(e); }
   };
 
@@ -258,12 +250,15 @@ export default function TeacherResults() {
                   <MapPin size={24} color="#22c55e" fill="#22c55e" />
                 </div>
               ))}
-              {Object.entries(answer || {}).map(([locId, pos]: [string, any]) => (
-                <div key={`student-${locId}`} style={{ position: 'absolute', left: `${pos.x}%`, top: `${pos.y}%`, transform: 'translate(-50%, -50%)' }}>
-                  <div style={{ background: '#0071e3', padding: '4px 10px', borderRadius: '8px', color: 'white', fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>{pos.label}</div>
-                  <MapPin size={20} color="#0071e3" fill="white" />
-                </div>
-              ))}
+              {q.locations?.map(loc => {
+                const studentLoc = answer?.find((al: any) => al.id === loc.id);
+                return studentLoc && (
+                  <div key={`student-${loc.id}`} style={{ position: 'absolute', left: `${studentLoc.x}%`, top: `${studentLoc.y}%`, transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div style={{ background: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: '700', marginBottom: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>{loc.label}</div>
+                    <MapPin size={20} color="var(--system-blue)" fill="var(--system-blue)" />
+                  </div>
+                );
+              })}
             </div>
           ) : q.type === 'definitions' ? (
             <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid var(--system-border)' }}>
@@ -335,16 +330,16 @@ export default function TeacherResults() {
             <div style={{ fontSize: '17px', whiteSpace: 'pre-wrap' }}>{answer || <i style={{ color: '#aaa' }}>Geen antwoord</i>}</div>
           )}
         </div>
-        {q.type !== 'open' && q.type !== 'image-analysis' && q.type !== 'multiple-choice' && (
-          <div style={{ marginTop: '16px', fontSize: '13px', color: '#86868b' }}>Correct: <strong>{q.correctAnswer}</strong></div>
-        )}
       </div>
     );
   };
 
+  if (loading) return <div style={{ padding: '100px', textAlign: 'center' }}>Inzendingen laden...</div>;
+
   return (
     <div style={{ minHeight: '100vh', background: '#f5f5f7', paddingTop: '72px' }}>
       <TopNav user={user} />
+      
       <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '48px 20px' }}>
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '48px' }}>
           <div>
@@ -358,12 +353,9 @@ export default function TeacherResults() {
               <button className={`btn ${viewMode === 'table' ? '' : 'btn-secondary'}`} onClick={() => setViewMode('table')}><TableIcon size={14} style={{ marginRight: '6px' }}/> Tabel</button>
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '12px' }}>
-            {hasUnsavedChanges && <div style={{ color: '#e11d48', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}><AlertTriangle size={16} /> Niet-opgeslagen punten</div>}
-            <button className="btn" onClick={saveAllScores} disabled={isSaving || !hasUnsavedChanges} style={{ background: hasUnsavedChanges ? '#0071e3' : '#86868b', borderRadius: '12px', padding: '12px 24px' }}>
-              <Save size={18} style={{ marginRight: '8px' }}/> Sla punten op
-            </button>
-          </div>
+          <button className="btn" onClick={saveAllScores} disabled={isSaving || !hasUnsavedChanges}>
+            <Save size={18} style={{ marginRight: '8px' }}/> {isSaving ? 'Bezig met opslaan...' : 'Alles opslaan'}
+          </button>
         </header>
 
         {submissions.length === 0 ? (
@@ -381,13 +373,18 @@ export default function TeacherResults() {
             {submissions[selectedStudentIdx] && (
               <div className="animate-up">
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '32px' }}>
-                  <div>
-                    <div style={{ fontSize: '40px', fontWeight: '800' }}>{calculateTotalScore(submissions[selectedStudentIdx].id)} <span style={{ color: '#86868b', fontSize: '24px' }}>/ {maxPoints} pt</span></div>
-                    <div style={{ fontSize: '14px', fontWeight: '600', color: getUnevaluatedCount(submissions[selectedStudentIdx].id) > 0 ? '#e11d48' : '#059669' }}>{getUnevaluatedCount(submissions[selectedStudentIdx].id) > 0 ? `${getUnevaluatedCount(submissions[selectedStudentIdx].id)} nog te beoordelen` : 'Beoordeeld'}</div>
+                  <div className="card" style={{ padding: '24px 32px', flex: 1, marginRight: '20px' }}>
+                    <p style={{ color: '#86868b', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Totaalscore</p>
+                    <h2 style={{ margin: 0, fontSize: '32px' }}>{calculateTotalScore(submissions[selectedStudentIdx].id)} <span style={{ fontSize: '18px', color: '#86868b' }}>/ {maxPoints}</span></h2>
                   </div>
-                  <button className="btn btn-danger" style={{ height: 'fit-content', padding: '10px 20px' }} onClick={() => handleDeleteSubmission(submissions[selectedStudentIdx].id)}><Trash2 size={16}/></button>
+                  <div className="card" style={{ padding: '24px 32px', flex: 1 }}>
+                    <p style={{ color: '#86868b', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Status</p>
+                    <h2 style={{ margin: 0, fontSize: '24px', color: getUnevaluatedCount(submissions[selectedStudentIdx].id) > 0 ? '#e11d48' : '#059669' }}>
+                      {getUnevaluatedCount(submissions[selectedStudentIdx].id) === 0 ? 'Beoordeeld' : `${getUnevaluatedCount(submissions[selectedStudentIdx].id)} vragen te gaan`}
+                    </h2>
+                  </div>
                 </div>
-                {exam?.questions.map((q: Question) => <QuestionResultRenderer key={q.id} q={q} submission={submissions[selectedStudentIdx]} showHeader={false} />)}
+                {exam?.questions.map(q => <QuestionResultRenderer key={q.id} q={q} submission={submissions[selectedStudentIdx]} />)}
               </div>
             )}
           </div>
@@ -404,30 +401,43 @@ export default function TeacherResults() {
             {exam?.questions[selectedQuestionIdx] && (
               <div className="animate-up">
                 <h2 style={{ padding: '0 12px 32px', fontSize: '24px', fontWeight: '700' }}>{exam.questions[selectedQuestionIdx].text}</h2>
-                {submissions.map(sub => <QuestionResultRenderer key={sub.id} q={exam.questions[selectedQuestionIdx]} submission={sub} showHeader={true} />)}
+                {submissions.map(sub => <QuestionResultRenderer key={sub.id} q={exam.questions[selectedQuestionIdx]} submission={sub} />)}
               </div>
             )}
           </div>
         ) : (
-          <div className="card animate-up" style={{ padding: 0, overflowX: 'auto', borderRadius: '24px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+          <div className="card animate-up" style={{ padding: 0, overflow: 'hidden', borderRadius: '24px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#f5f5f7', borderBottom: '1px solid var(--system-border)' }}>
-                  <th style={{ padding: '20px', textAlign: 'left', fontWeight: '700', position: 'sticky', left: 0, background: '#f5f5f7', zIndex: 10 }}>Student</th>
-                  {exam?.questions.map((_: any, i: number) => <th key={i} style={{ padding: '20px', textAlign: 'center', fontWeight: '700' }}>V{i + 1}</th>)}
-                  <th style={{ padding: '20px', textAlign: 'center', fontWeight: '800', color: '#0071e3' }}>Totaal</th>
+                  <th style={{ padding: '20px 32px', textAlign: 'left', fontSize: '13px' }}>STUDENT</th>
+                  <th style={{ padding: '20px 32px', textAlign: 'left', fontSize: '13px' }}>KLAS</th>
+                  {exam?.questions.map((q, i) => <th key={q.id} style={{ padding: '20px', textAlign: 'center', fontSize: '11px' }}>V{i+1}</th>)}
+                  <th style={{ padding: '20px 32px', textAlign: 'right', fontSize: '13px' }}>TOTAAL</th>
+                  <th style={{ padding: '20px 32px', width: '50px' }}></th>
                 </tr>
               </thead>
               <tbody>
                 {submissions.map(sub => (
                   <tr key={sub.id} style={{ borderBottom: '1px solid #f5f5f7' }}>
-                    <td style={{ padding: '16px 20px', fontWeight: '600', position: 'sticky', left: 0, background: 'white', zIndex: 5 }}>{sub.student_name}</td>
-                    {exam?.questions.map((q: Question) => {
-                      const s = allManualScores[sub.id]?.[q.id];
-                      const totalQ = typeof s === 'object' && s !== null ? Object.values(s).reduce((a:number, b:any) => a + (parseFloat(b) || 0), 0) : (parseFloat(s as any) || 0);
-                      return <td key={q.id} style={{ padding: '16px', textAlign: 'center', color: '#86868b' }}>{totalQ}</td>;
+                    <td style={{ padding: '20px 32px', fontWeight: '600' }}>{sub.student_name}</td>
+                    <td style={{ padding: '20px 32px', color: '#86868b' }}>{sub.student_klas}</td>
+                    {exam?.questions.map(q => {
+                      const score = allManualScores[sub.id]?.[q.id];
+                      const isComplete = q.type === 'image-analysis' ? (score && typeof score === 'object' && Object.keys(score).length === q.subQuestions?.length) : (score !== null && score !== undefined);
+                      const displayScore = typeof score === 'object' && score !== null ? Object.values(score).reduce((a:any, b:any) => a+b, 0) : score;
+                      return (
+                        <td key={q.id} style={{ padding: '20px', textAlign: 'center' }}>
+                          <span style={{ padding: '4px 8px', borderRadius: '6px', background: isComplete ? '#f0fdf4' : '#fff1f2', color: isComplete ? '#166534' : '#991b1b', fontSize: '12px', fontWeight: '700' }}>
+                            {isComplete ? displayScore : '-'}
+                          </span>
+                        </td>
+                      );
                     })}
-                    <td style={{ padding: '16px', textAlign: 'center', fontWeight: '700', color: '#0071e3', background: '#f0f7ff' }}>{calculateTotalScore(sub.id)} / {maxPoints}</td>
+                    <td style={{ padding: '20px 32px', textAlign: 'right', fontWeight: '700', fontSize: '18px' }}>{calculateTotalScore(sub.id)}</td>
+                    <td style={{ padding: '20px 32px' }}>
+                      <button className="btn btn-danger" style={{ padding: '6px' }} onClick={() => handleDeleteSubmission(sub.id)}><XCircle size={14}/></button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
