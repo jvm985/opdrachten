@@ -58,12 +58,13 @@ export const initDb = () => {
         stmt.run('s1', 'student@test.com', 'welkom01', 'student', 'Student Test');
         
         // Atheneum Kapellen Docenten
-        stmt.run('teacher-1', 'joachim.vanmeirvenne@atheneumkapellen.be', 'google-auth', 'teacher', 'Joachim Van Meirvenne');
-        stmt.run('teacher-2', 'wim.benda@atheneumkapellen.be', 'google-auth', 'teacher', 'Wim Benda');
-        stmt.run('teacher-3', 'cedric.denhond@atheneumkapellen.be', 'google-auth', 'teacher', 'Cedric Den Hond');
-        stmt.run('teacher-4', 'marc.vaneijmeren@atheneumkapellen.be', 'google-auth', 'teacher', 'Marc Van Eijmeren');
-        stmt.run('teacher-5', 'kurt.vermeiren@atheneumkapellen.be', 'google-auth', 'teacher', 'Kurt Vermeiren');
-        stmt.run('teacher-6', 'laura.vanaert@atheneumkapellen.be', 'google-auth', 'teacher', 'Laura Van Aert');
+        stmt.run('jvm-1', 'joachim.van.mechelen@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Joachim Van Mechelen');
+        stmt.run('jvm-2', 'joachim.vanmeirvenne@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Joachim Van Meirvenne');
+        stmt.run('teacher-2', 'wim.benda@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Wim Benda');
+        stmt.run('teacher-3', 'cedric.denhond@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Cedric Den Hond');
+        stmt.run('teacher-4', 'marc.vaneijmeren@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Marc Van Eijmeren');
+        stmt.run('teacher-5', 'kurt.vermeiren@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Kurt Vermeiren');
+        stmt.run('teacher-6', 'laura.vanaert@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Laura Van Aert');
         
         stmt.finalize();
       });

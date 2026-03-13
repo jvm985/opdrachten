@@ -52,6 +52,8 @@ app.post('/api/auth/google', async (req, res) => {
 
     if (!email) return res.status(401).json({ error: 'Fout bij verificatie' });
 
+    console.log(`🔑 Login poging voor: ${email} (Rol: ${role})`);
+
     if (!email.endsWith('@atheneumkapellen.be')) {
       return res.status(403).json({ error: 'Alleen school-accounts toegestaan.' });
     }

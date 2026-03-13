@@ -27,8 +27,10 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-echo "🚀 Starting Backend API in Docker Compose..."
-sudo docker-compose up -d --build
+echo "🚀 Restarting Docker Containers..."
+# Gebruik de moderne 'docker compose' (zonder streepje) en ruim orphans op
+sudo docker compose down --remove-orphans
+sudo docker compose up -d --build
 
 echo "🌱 Seeding database..."
 # Wacht even tot de API container goed is opgestart
@@ -36,8 +38,4 @@ sleep 5
 sudo docker exec exam-api npm run seed
 
 echo "✅ Deployment finished successfully!"
-echo ""
-echo "🖥️  NGINX reminder:"
-echo "Your host Nginx should point the 'root' directives to the newly built dist folders:"
-echo "Docent: $(pwd)/client-teacher/dist"
-echo "Student: $(pwd)/client-student/dist"
+echo "🚀 De app is nu live op https://docent.irishof.cloud"
