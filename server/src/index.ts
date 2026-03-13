@@ -190,6 +190,18 @@ app.get('/api/exams/:key', (req, res) => {
   });
 });
 
+app.get('/api/exams/details/:id', (req, res) => {
+  db.get('SELECT * FROM exams WHERE id = ?', [req.params.id], (err, row: any) => {
+    if (err || !row) return res.status(404).json({ error: 'Niet gevonden' });
+    row.questions = JSON.parse(row.questions);
+    row.labels = row.labels ? JSON.parse(row.labels) : [];
+    row.isGraded = !!row.is_graded;
+    row.requireFullscreen = !!row.require_fullscreen;
+    row.detectTabSwitch = !!row.detect_tab_switch;
+    res.json(row);
+  });
+});
+
 app.get('/api/exams/:id/submissions', (req, res) => {
   db.all('SELECT * FROM submissions WHERE exam_id = ? ORDER BY submitted_at DESC', [req.params.id], (err, rows: any[]) => {
     (rows || []).forEach(r => {
