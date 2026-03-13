@@ -1,0 +1,12 @@
+services:
+  api:
+    build: ./server
+    container_name: exam-api
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./server/database.sqlite:/app/database.sqlite
+      - ./server/public/photos:/app/public/photos
+    environment:
+      - NODE_ENV=production
+    restart: always
