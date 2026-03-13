@@ -15,7 +15,7 @@ sudo docker run --rm -v $(pwd):/app -w /app node:22-alpine sh -c "
   chmod -R +x node_modules/.bin 2>/dev/null || true &&
   chmod -R +x server/node_modules/.bin 2>/dev/null || true &&
   echo '🧪 Running API Tests...' &&
-  cd server && NODE_ENV=test ./node_modules/.bin/jest --forceExit && cd .. &&
+  cd server && NODE_ENV=test node node_modules/jest/bin/jest.js --forceExit && cd .. &&
   echo '🏗️ Building frontends...' &&
   npm run build --prefix client-teacher &&
   npm run build --prefix client-student
