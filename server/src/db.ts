@@ -1,8 +1,8 @@
 import sqlite3 from 'sqlite3';
 import path from 'path';
 
-// Gebruik een absoluut pad naar de project root om verwarring te voorkomen tussen src/ en dist/
-const dbPath = '/home/joachim/develop/ai/exam-net-clone/server/database.sqlite';
+// Gebruik een pad relatief aan de huidige directory om overal te werken (Docker, lokaal, etc.)
+const dbPath = path.resolve(__dirname, '../../database.sqlite');
 console.log('Database path:', dbPath);
 export const db = new sqlite3.Database(dbPath);
 

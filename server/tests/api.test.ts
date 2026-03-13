@@ -1,5 +1,8 @@
 import request from 'supertest';
 import { app } from '../src/index';
+import { db } from '../src/db';
+
+jest.setTimeout(20000); // Verhoog timeout naar 20 seconden voor tragere servers
 
 describe('Exam-Net Clone API Tests', () => {
   let createdExamId: string;
@@ -8,6 +11,15 @@ describe('Exam-Net Clone API Tests', () => {
   let submissionId: string;
 
   const teacherId = 'teacher-1';
+
+  afterAll(async () => {
+    await new Promise<void>((resolve) => {
+      db.close((err) => {
+        if (err) console.error('Fout bij sluiten DB:', err);
+        resolve();
+      });
+    });
+  });
 
   it('GET /api/students - should return a list of students', async () => {
     const res = await request(app).get('/api/students');
