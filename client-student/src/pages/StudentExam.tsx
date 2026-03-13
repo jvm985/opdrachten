@@ -186,8 +186,9 @@ const QuestionRenderer = ({
 export default function StudentExam() {
   const { examKey } = useParams();
   const navigate = useNavigate();
-  const name = sessionStorage.getItem('studentName');
   const isPreview = new URLSearchParams(window.location.search).get('preview') === 'true';
+  const storedName = sessionStorage.getItem('studentName');
+  const name = isPreview ? (storedName || 'PREVIEW DOCENT') : storedName;
   
   const [exam, setExam] = useState<any>(null);
   const examRef = useRef<any>(null);
@@ -213,14 +214,30 @@ export default function StudentExam() {
   useEffect(() => { isFullscreenRef.current = isFullscreen; }, [isFullscreen]);
 
   useEffect(() => {
-    if (!name) {
-      navigate('/student');
+    if (!name && !isPreview) {
+      navigate('/');
       return;
     }
 
     fetch(`/api/exams/${examKey}`)
       .then(res => res.json())
-      .then(data => setExam(data))
+      .then(data => {
+        setExam(data);
+        // Initialiseer matching en ordering vragen met een gehusselde staat
+        const initialAnswers: Record<string, any> = {};
+        data.questions.forEach((q: Question) => {
+          if (q.type === 'matching' && q.matchingPairs) {
+            initialAnswers[q.id] = [...q.matchingPairs]
+              .map(p => ({ id: p.id, text: p.right }))
+              .sort(() => Math.random() - 0.5);
+          } else if (q.type === 'ordering' && q.orderItems) {
+            initialAnswers[q.id] = q.orderItems
+              .map((text, i) => ({ id: i.toString(), text }))
+              .sort(() => Math.random() - 0.5);
+          }
+        });
+        setAnswers(prev => ({ ...initialAnswers, ...prev }));
+      })
       .catch(() => alert('Kan examen niet laden.'));
 
     let socket: any = null;

@@ -7,5 +7,10 @@
     "dev": "npx concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client-teacher\" \"npm run dev --prefix client-student\"",
     "build": "npm run build --prefix client-teacher && npm run build --prefix client-student && npm run build --prefix server",
     "start": "npm start --prefix server"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "jest-puppeteer": "^11.0.0",
+    "puppeteer": "^24.39.1"
   }
 }

@@ -1,122 +1,87 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users } from 'lucide-react';
-
-interface Student {
-  id: number;
-  name: string;
-  klas: string;
-  photo_url: string;
-}
+import { Shield, Users } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
 
 export default function StudentLogin() {
   const [examKey, setExamKey] = useState('');
-  const [students, setStudents] = useState<Student[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  
-  useEffect(() => {
-    fetch('/api/students')
-      .then(res => res.json())
-      .then(data => {
-        // Sorteer op klas en naam
-        const sorted = data.sort((a: Student, b: Student) => {
-          if (a.klas !== b.klas) return a.klas.localeCompare(b.klas);
-          return a.name.localeCompare(b.name);
-        });
-        setStudents(sorted);
-      })
-      .catch(err => console.error('Fout bij ophalen studenten:', err));
-  }, []);
 
-  const handleTestLogin = () => {
-    const elise = students.find(s => s.name.includes('Van Aelst Elise'));
-    if (elise) {
-      setSelectedStudent(elise);
-      // We vullen de code niet in, dat moet de gebruiker nog doen of we kunnen een default pakken
-    } else {
-      alert('Van Aelst Elise niet gevonden in de lijst. Is de import al klaar?');
-    }
-  };
-
-  const handleJoinExam = async () => {
-    if (!examKey) return setError('Vul de examencode in');
-    if (!selectedStudent) return setError('Selecteer je naam uit de lijst');
+  const handleGoogleSuccess = async (response: any) => {
+    if (!examKey) return setError('Vul eerst de examen-sleutel in');
+    
+    setIsLoading(true);
+    setError('');
     
     try {
-      const res = await fetch(`/api/exams/${examKey}`);
-      if (!res.ok) throw new Error('Examen niet gevonden. Controleer de code.');
+      // Controleer eerst of het examen bestaat
+      const examRes = await fetch(`/api/exams/${examKey.toUpperCase()}`);
+      if (!examRes.ok) {
+        setError('Ongeldige examen-sleutel');
+        setIsLoading(false);
+        return;
+      }
+
+      // Verifieer Google Token en match met student
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: response.credential, role: 'student' }),
+      });
       
-      // Student info opslaan voor het examen
-      sessionStorage.setItem('studentName', selectedStudent.name);
-      sessionStorage.setItem('studentKlas', selectedStudent.klas);
-      sessionStorage.setItem('studentPhoto', selectedStudent.photo_url);
-      
-      navigate(`/exam/${examKey}`);
-    } catch (e: any) {
-      setError(e.message);
+      const data = await res.json();
+      if (res.ok) {
+        sessionStorage.setItem('studentName', data.name);
+        sessionStorage.setItem('studentKlas', data.klas);
+        sessionStorage.setItem('studentPhoto', data.photo_url || '');
+        navigate(`/exam/${examKey.toUpperCase()}`);
+      } else {
+        setError(data.error || 'Google login mislukt');
+      }
+    } catch (e) { 
+      console.error(e); 
+      setError('Er is een fout opgetreden.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="animate-up" style={{ padding: '80px 0', maxWidth: '500px', margin: '0 auto' }}>
-      <div className="card">
-        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <Users size={48} color="var(--system-blue)" style={{ marginBottom: '16px' }} />
-          <h2>Aanmelden voor examen</h2>
+    <div className="animate-up" style={{ padding: '100px 0', maxWidth: '500px', margin: '0 auto' }}>
+      <div className="card" style={{ padding: '40px', textAlign: 'center' }}>
+        <Shield size={64} color="var(--system-blue)" style={{ marginBottom: '24px' }} />
+        <h1 style={{ fontSize: '32px', marginBottom: '12px' }}>Student Login</h1>
+        <p className="text-muted" style={{ marginBottom: '40px' }}>Gebruik je school-account om deel te nemen</p>
+
+        {error && <div style={{ background: '#fef2f2', color: 'red', padding: '12px', borderRadius: '8px', marginBottom: '24px', fontSize: '14px' }}>{error}</div>}
+
+        <div style={{ textAlign: 'left', marginBottom: '32px' }}>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>EXAMEN SLEUTEL</label>
+          <input 
+            className="input" 
+            style={{ fontSize: '24px', textAlign: 'center', letterSpacing: '4px', textTransform: 'uppercase' }}
+            value={examKey} 
+            onChange={e => setExamKey(e.target.value)} 
+            placeholder="ABC123"
+            maxLength={10}
+          />
         </div>
 
-        {error && <p style={{ color: 'var(--system-error)', textAlign: 'center', marginBottom: '20px', fontSize: '14px', fontWeight: '600' }}>{error}</p>}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+          <p style={{ fontSize: '14px', fontWeight: '500' }}>Stap 2: Bevestig je identiteit</p>
+          <GoogleLogin 
+            onSuccess={handleGoogleSuccess} 
+            onError={() => setError('Google login mislukt')}
+            useOneTap
+          />
+        </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--system-secondary-text)', marginBottom: '8px', textTransform: 'uppercase' }}>JOUW NAAM</label>
-            <select 
-              className="input" 
-              value={selectedStudent?.id || ''} 
-              onChange={e => {
-                const s = students.find(s => s.id === parseInt(e.target.value));
-                setSelectedStudent(s || null);
-              }}
-            >
-              <option value="">-- Selecteer je naam --</option>
-              {students.map(s => (
-                <option key={s.id} value={s.id}>{s.klas} - {s.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {selectedStudent && (
-            <div className="animate-up" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: 'var(--system-secondary-bg)', borderRadius: '12px' }}>
-              <img src={selectedStudent.photo_url} style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', border: '2px solid white' }} alt={selectedStudent.name} />
-              <div>
-                <p style={{ margin: 0, fontWeight: '700' }}>{selectedStudent.name}</p>
-                <p style={{ margin: 0, fontSize: '13px', color: 'var(--system-secondary-text)' }}>Klas: {selectedStudent.klas}</p>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--system-secondary-text)', marginBottom: '8px', textTransform: 'uppercase' }}>EXAMENCODE</label>
-            <input 
-              className="input" 
-              placeholder="Bijv. A4B-9X" 
-              value={examKey} 
-              onChange={e => setExamKey(e.target.value.toUpperCase())} 
-              style={{ textAlign: 'center', fontSize: '24px', letterSpacing: '4px', fontWeight: '700' }}
-            />
-          </div>
-
-          <button className="btn" style={{ width: '100%', padding: '16px', fontSize: '17px' }} onClick={handleJoinExam}>
-            Start Examen
-          </button>
-
-          <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid var(--system-border)', textAlign: 'center' }}>
-            <p style={{ fontSize: '13px', color: 'var(--system-secondary-text)', marginBottom: '12px' }}>TESTEN:</p>
-            <button className="btn btn-secondary" style={{ width: '100%' }} onClick={handleTestLogin}>
-              Snelkoppeling: Van Aelst Elise
-            </button>
+        <div style={{ marginTop: '40px', paddingTop: '32px', borderTop: '1px solid var(--system-border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--system-secondary-text)' }}>
+            <Users size={16} />
+            <span style={{ fontSize: '13px' }}>Je wordt automatisch gekoppeld aan de klaslijst.</span>
           </div>
         </div>
       </div>

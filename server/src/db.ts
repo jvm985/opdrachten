@@ -21,6 +21,8 @@ export const initDb = () => {
           labels TEXT,
           type TEXT DEFAULT 'examen',
           is_graded INTEGER DEFAULT 1,
+          require_fullscreen INTEGER DEFAULT 1,
+          detect_tab_switch INTEGER DEFAULT 1,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `, (err) => {
@@ -28,6 +30,8 @@ export const initDb = () => {
         db.run('ALTER TABLE exams ADD COLUMN labels TEXT', () => {});
         db.run("ALTER TABLE exams ADD COLUMN type TEXT DEFAULT 'examen'", () => {});
         db.run('ALTER TABLE exams ADD COLUMN is_graded INTEGER DEFAULT 1', () => {});
+        db.run('ALTER TABLE exams ADD COLUMN require_fullscreen INTEGER DEFAULT 1', () => {});
+        db.run('ALTER TABLE exams ADD COLUMN detect_tab_switch INTEGER DEFAULT 1', () => {});
       });
 
       // Users table
@@ -37,10 +41,17 @@ export const initDb = () => {
           email TEXT UNIQUE NOT NULL,
           password TEXT NOT NULL,
           role TEXT NOT NULL,
-          name TEXT NOT NULL
+          name TEXT NOT NULL,
+          two_factor_secret TEXT,
+          two_factor_enabled INTEGER DEFAULT 0,
+          webauthn_devices TEXT
         )
-      `, (err) => {
-        if (err) return reject(err);
+      `, (err: any) => {
+        if (err) console.error('CREATE TABLE users Error:', err);
+        db.run('ALTER TABLE users ADD COLUMN email TEXT', () => {});
+        db.run('ALTER TABLE users ADD COLUMN two_factor_secret TEXT', () => {});
+        db.run('ALTER TABLE users ADD COLUMN two_factor_enabled INTEGER DEFAULT 0', () => {});
+        db.run('ALTER TABLE users ADD COLUMN webauthn_devices TEXT', () => {});
         
         const stmt = db.prepare('INSERT OR IGNORE INTO users (id, email, password, role, name) VALUES (?, ?, ?, ?, ?)');
         stmt.run('t1', 'docent@test.com', 'welkom01', 'teacher', 'Docent Test');
@@ -60,7 +71,7 @@ export const initDb = () => {
           submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `, (err) => {
-        if (err) return reject(err);
+        if (err) console.error('CREATE TABLE submissions Error:', err);
         db.run('ALTER TABLE submissions ADD COLUMN scores TEXT', () => {});
         db.run('ALTER TABLE submissions ADD COLUMN student_klas TEXT', () => {});
       });
@@ -78,7 +89,7 @@ export const initDb = () => {
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `, (err) => {
-        if (err) return reject(err);
+        if (err) console.error('CREATE TABLE questions_bank Error:', err);
       });
 
       // Students table (from PDF)
@@ -87,10 +98,12 @@ export const initDb = () => {
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           name TEXT NOT NULL,
           klas TEXT NOT NULL,
+          email TEXT UNIQUE,
           photo_url TEXT
         )
       `, (err) => {
         if (err) return reject(err);
+        db.run('ALTER TABLE students ADD COLUMN email TEXT', () => {});
         console.log('Database tables ready.');
         resolve();
       });

@@ -1,174 +1,199 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trash2, Search, Tag, Database, Filter } from 'lucide-react';
+import { ArrowLeft, Trash2, Search, Tag, Database, Filter, Edit3, Save, X } from 'lucide-react';
+import { TopNav } from '../components/TopNav';
+import { QuestionEditor } from '../components/QuestionEditor';
 
 interface Question {
   id: string;
-  type: string;
+  type: 'open' | 'multiple-choice' | 'true-false' | 'map' | 'definitions' | 'matching' | 'ordering' | 'image-analysis';
   text: string;
   points: number;
   labels: string[];
+  data: string;
+  // Fields for specific types
+  options?: string[];
+  correctAnswer?: string;
+  image?: string;
+  locations?: any[];
+  pairs?: any[];
+  matchingPairs?: any[];
+  orderItems?: string[];
+  subQuestions?: any[];
 }
 
 export default function TeacherBank() {
   const navigate = useNavigate();
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [search, setSearch] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  
+  // Editing state
+  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (user.role !== 'teacher') {
-      navigate('/login?role=teacher');
-      return;
-    }
-    fetchBank();
+    if (user.role !== 'teacher') { navigate('/login'); return; }
+    fetchQuestions();
   }, []);
 
-  const fetchBank = async () => {
-    try {
-      const res = await fetch(`/api/questions-bank?teacherId=${user.id}`);
-      const data = await res.json();
-      setQuestions(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsLoading(false);
-    }
+  const fetchQuestions = async () => {
+    const res = await fetch(`/api/questions-bank?teacherId=${user.id}`);
+    const data = await res.json();
+    setQuestions(data);
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Weet je zeker dat je deze vraag definitief uit de vraagbank wilt verwijderen? Dit heeft geen effect op bestaande toetsen.')) return;
-    try {
-      const res = await fetch(`/api/questions-bank/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setQuestions(questions.filter(q => q.id !== id));
-      }
-    } catch (e) {
-      alert('Verwijderen mislukt');
+    if (!confirm('Vraag verwijderen uit bank?')) return;
+    await fetch(`/api/questions-bank/${id}`, { method: 'DELETE' });
+    fetchQuestions();
+  };
+
+  const handleStartEdit = (q: Question) => {
+    setEditingQuestion({ ...q });
+  };
+
+  const handleUpdateEditingQuestion = (id: string, updates: Partial<Question>) => {
+    if (editingQuestion && editingQuestion.id === id) {
+      setEditingQuestion({ ...editingQuestion, ...updates });
     }
   };
 
-  const toggleFilter = (label: string) => {
-    setActiveFilters(prev => 
-      prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]
-    );
+  const handleSaveEdit = async () => {
+    if (!editingQuestion) return;
+    setIsSaving(true);
+    try {
+      const res = await fetch('/api/questions-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          teacherId: user.id, 
+          question: editingQuestion, 
+          labels: editingQuestion.labels, 
+          forceNew: false 
+        }),
+      });
+      if (res.ok) {
+        alert('Vraag bijgewerkt!');
+        setEditingQuestion(null);
+        fetchQuestions();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const allLabels = Array.from(new Set(questions.flatMap(q => q.labels || []))).sort();
 
   const filteredQuestions = questions.filter(q => {
-    const matchesSearch = q.text.toLowerCase().includes(search.toLowerCase()) || 
-                         q.labels?.some(l => l.toLowerCase().includes(search.toLowerCase())) ||
-                         q.type.toLowerCase().includes(search.toLowerCase());
-    
-    const matchesLabels = activeFilters.length === 0 || 
-                         activeFilters.every(f => q.labels?.includes(f));
-    
-    return matchesSearch && matchesLabels;
+    const matchesSearch = q.text.toLowerCase().includes(search.toLowerCase());
+    const matchesFilter = activeFilters.length === 0 || activeFilters.every(f => q.labels?.includes(f));
+    return matchesSearch && matchesFilter;
   });
 
+  const toggleFilter = (label: string) => {
+    setActiveFilters(prev => prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]);
+  };
+
+  const handleMapClick = (e: React.MouseEvent, q: Question) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const newLocation = { id: Math.random().toString(36).substr(2, 9), label: 'Nieuw', x, y };
+    handleUpdateEditingQuestion(q.id, { locations: [...(q.locations || []), newLocation] });
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, qId: string) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => handleUpdateEditingQuestion(qId, { image: reader.result as string });
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
-    <div className="animate-up" style={{ padding: '80px 0' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '60px' }}>
-        <button className="btn btn-secondary" onClick={() => navigate('/teacher')}>
-          <ArrowLeft size={16} /> Dashboard
-        </button>
-        <div style={{ textAlign: 'center' }}>
-          <h1 style={{ margin: 0, fontSize: '32px' }}>Vraagbank Beheer</h1>
-          <p className="text-muted" style={{ margin: 0 }}>Beheer al je herbruikbare vragen</p>
-        </div>
-        <div style={{ width: '120px' }}></div>
-      </header>
-
-      <div style={{ marginBottom: '40px' }}>
-        <div className="filter-bar" style={{ display: 'flex', gap: '20px', alignItems: 'center', padding: '12px 24px', marginBottom: '20px' }}>
-          <Search size={20} color="var(--system-secondary-text)" />
-          <input 
-            className="input" 
-            style={{ border: 'none', background: 'none', fontSize: '18px', padding: 0, boxShadow: 'none' }}
-            placeholder="Zoek op tekst..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-        </div>
-
-        {allLabels.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--system-secondary-text)', fontSize: '13px', fontWeight: '600' }}>
-              <Filter size={14} /> FILTER OP LABELS (AND):
-            </div>
-            {allLabels.map(l => (
-              <button 
-                key={l} 
-                onClick={() => toggleFilter(l)}
-                style={{ 
-                  padding: '4px 12px', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', border: '1px solid',
-                  background: activeFilters.includes(l) ? 'var(--system-text)' : 'white',
-                  borderColor: activeFilters.includes(l) ? 'transparent' : 'var(--system-border)',
-                  color: activeFilters.includes(l) ? 'white' : 'var(--system-secondary-text)',
-                  fontWeight: '600', transition: 'all 0.2s'
-                }}
-              >
-                {l}
-              </button>
-            ))}
-            {activeFilters.length > 0 && (
-              <button 
-                onClick={() => setActiveFilters([])}
-                style={{ background: 'none', border: 'none', color: 'var(--system-blue)', fontSize: '12px', cursor: 'pointer', fontWeight: '600' }}
-              >
-                Wis filters
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {isLoading ? (
-        <p style={{ textAlign: 'center' }}>Laden...</p>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {filteredQuestions.map(q => (
-            <div key={q.id} className="card card-hoverable" style={{ padding: '24px', background: 'white' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '40px' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center' }}>
-                    <span className="badge" style={{ background: 'var(--system-secondary-bg)', color: 'var(--system-text)' }}>{q.type}</span>
-                    <span className="badge" style={{ background: 'var(--system-blue)', color: 'white', border: 'none' }}>{q.points} PT</span>
-                    {q.labels?.map(l => (
-                      <span key={l} className="badge" style={{ background: 'none', border: '1px solid var(--system-border)', color: 'var(--system-secondary-text)' }}>
-                        <Tag size={10} /> {l}
-                      </span>
-                    ))}
-                  </div>
-                  <p style={{ margin: 0, fontSize: '18px', fontWeight: '500', lineHeight: '1.4' }}>{q.text}</p>
-                </div>
-                
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                  <button 
-                    className="btn btn-danger" 
-                    style={{ padding: '10px' }} 
-                    onClick={() => handleDelete(q.id)}
-                    title="Definitief verwijderen uit bank"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
+    <div style={{ minHeight: '100vh', background: '#f5f5f7', paddingTop: '72px' }}>
+      <TopNav user={user} />
+      
+      <main style={{ maxWidth: '1000px', margin: '0 auto', padding: '40px' }}>
+        {editingQuestion ? (
+          <div className="animate-up">
+            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <button className="btn btn-secondary" style={{ borderRadius: '50%', width: '40px', height: '40px', padding: 0 }} onClick={() => setEditingQuestion(null)}><ArrowLeft size={20}/></button>
+                <h1 style={{ fontSize: '32px', fontWeight: '700', margin: 0 }}>Vraag bewerken</h1>
               </div>
-            </div>
-          ))}
+              <button className="btn" onClick={handleSaveEdit} disabled={isSaving}>
+                <Save size={18} style={{ marginRight: '8px' }} /> {isSaving ? 'Bezig...' : 'Opslaan in bank'}
+              </button>
+            </header>
 
-          {filteredQuestions.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '100px 0', color: 'var(--system-secondary-text)' }}>
-              <Database size={64} style={{ margin: '0 auto 24px', opacity: 0.2 }} />
-              <h3>Geen vragen gevonden</h3>
-              <p>Probeer een andere zoekopdracht of filter.</p>
+            <QuestionEditor 
+              q={editingQuestion} 
+              handleUpdateQuestion={handleUpdateEditingQuestion}
+              handleMapClick={handleMapClick}
+              handleImageUpload={handleImageUpload}
+              showBankButton={false}
+              showRemoveButton={false}
+            />
+          </div>
+        ) : (
+          <>
+            <header style={{ marginBottom: '40px' }}>
+              <h1 style={{ fontSize: '48px', fontWeight: '700', margin: 0, letterSpacing: '-1.5px' }}>Vraagbank</h1>
+              <p className="text-muted" style={{ fontSize: '19px' }}>Herbruik en beheer je opgeslagen vragen.</p>
+            </header>
+
+            <div className="card" style={{ marginBottom: '32px', padding: '24px', borderRadius: '20px' }}>
+              <div style={{ position: 'relative', marginBottom: '24px' }}>
+                <Search size={20} style={{ position: 'absolute', left: '16px', top: '14px', color: '#86868b' }} />
+                <input className="input" style={{ paddingLeft: '48px', borderRadius: '12px' }} placeholder="Zoek in je vragen..." value={search} onChange={e => setSearch(e.target.value)} />
+              </div>
+
+              {allLabels.length > 0 && (
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button onClick={() => setActiveFilters([])} style={{ border: 'none', background: activeFilters.length === 0 ? '#0071e3' : '#f5f5f7', color: activeFilters.length === 0 ? 'white' : '#1d1d1f', padding: '6px 14px', borderRadius: '16px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>Alle</button>
+                  {allLabels.map(l => (
+                    <button key={l} onClick={() => toggleFilter(l)} style={{ border: 'none', background: activeFilters.includes(l) ? '#0071e3' : '#f5f5f7', color: activeFilters.includes(l) ? 'white' : '#1d1d1f', padding: '6px 14px', borderRadius: '16px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>{l}</button>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {filteredQuestions.map(q => (
+                <div key={q.id} className="card card-hoverable" style={{ padding: '24px', borderRadius: '18px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                        <span className="badge" style={{ fontSize: '10px', textTransform: 'uppercase', color: '#0071e3', border: 'none', background: '#f0f7ff' }}>{q.type}</span>
+                        <span style={{ fontSize: '10px', color: '#86868b', fontWeight: '600' }}>{q.points} pt</span>
+                      </div>
+                      <p style={{ fontSize: '18px', margin: 0, fontWeight: '600', color: '#1d1d1f' }}>{q.text}</p>
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '16px' }}>
+                        {q.labels?.map(l => <span key={l} className="badge" style={{ fontSize: '10px', background: '#f5f5f7' }}>{l}</span>)}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button className="btn btn-secondary" style={{ padding: '8px', borderRadius: '10px' }} onClick={() => handleStartEdit(q)}><Edit3 size={16}/></button>
+                      <button className="btn btn-danger" style={{ padding: '8px', borderRadius: '10px' }} onClick={() => handleDelete(q.id)}><Trash2 size={16}/></button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {filteredQuestions.length === 0 && (
+                <div className="card" style={{ padding: '60px', textAlign: 'center' }}>
+                  <p className="text-muted">Geen vragen gevonden.</p>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </main>
     </div>
   );
 }

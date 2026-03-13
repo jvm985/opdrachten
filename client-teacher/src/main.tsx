@@ -1,10 +1,16 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { GoogleOAuthProvider } from '@react-oauth/google'
 import './index.css'
 import App from './App.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <GoogleOAuthProvider 
+      clientId="339058057860-i6ne31mqs27mqm2ulac7al9vi26pmgo1.apps.googleusercontent.com"
+      onScriptLoadError={() => console.error('Google SDK failed to load')}
+    >
+      <App />
+    </GoogleOAuthProvider>
   </StrictMode>,
 )
