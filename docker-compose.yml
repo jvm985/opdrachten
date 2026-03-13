@@ -15,7 +15,7 @@ services:
     image: nginx:alpine
     container_name: exam-frontend
     ports:
-      - "8080:80"
+      - "8090:80"
     volumes:
       - ./nginx/production.conf:/etc/nginx/conf.d/default.conf:ro
       - ./client-teacher/dist:/usr/share/nginx/html/teacher:ro
