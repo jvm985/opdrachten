@@ -15,7 +15,6 @@ export default function TeacherResults() {
   const [selectedStudentIdx, setSelectedStudentIdx] = useState(0);
   const [selectedQuestionIdx, setSelectedQuestionIdx] = useState(0);
   
-  // Scoring state
   const [allManualScores, setAllManualScores] = useState<Record<string, any>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -25,10 +24,7 @@ export default function TeacherResults() {
     fetchData();
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (hasUnsavedChanges) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
+      if (hasUnsavedChanges) { e.preventDefault(); e.returnValue = ''; }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
@@ -36,26 +32,19 @@ export default function TeacherResults() {
 
   const calculateAutoScore = (q: Question, answer: any): number | null => {
     if (answer === undefined || answer === null) return 0;
-
     switch (q.type) {
-      case 'multiple-choice':
-        return answer === q.correctAnswer ? q.points : 0;
-      
-      case 'true-false':
-        return (answer?.value || answer) === q.correctAnswer ? q.points : 0;
-
+      case 'multiple-choice': return answer === q.correctAnswer ? q.points : 0;
+      case 'true-false': return (answer?.value || answer) === q.correctAnswer ? q.points : 0;
       case 'matching': {
         if (!q.matchingPairs || !Array.isArray(answer)) return 0;
         const correctCount = q.matchingPairs.filter((p, idx) => answer[idx]?.text === p.right).length;
         return parseFloat(((correctCount / q.matchingPairs.length) * q.points).toFixed(2));
       }
-
       case 'ordering': {
         if (!q.orderItems || !Array.isArray(answer)) return 0;
         const correctCount = q.orderItems.filter((item, idx) => answer[idx]?.text === item).length;
         return parseFloat(((correctCount / q.orderItems.length) * q.points).toFixed(2));
       }
-
       case 'definitions': {
         if (!q.pairs) return 0;
         const correctCount = q.pairs.filter(p => {
@@ -64,11 +53,9 @@ export default function TeacherResults() {
         }).length;
         return parseFloat(((correctCount / q.pairs.length) * q.points).toFixed(2));
       }
-
       case 'timeline': {
         if (!q.timelineData || !answer?.placed) return 0;
-        let correctCount = 0;
-        let totalEvents = 0;
+        let correctCount = 0; let totalEvents = 0;
         q.timelineData.forEach((bucket, correctIdx) => {
           bucket.forEach(event => {
             totalEvents++;
@@ -81,7 +68,6 @@ export default function TeacherResults() {
         if (totalEvents === 0) return 0;
         return parseFloat(((correctCount / totalEvents) * q.points).toFixed(2));
       }
-
       case 'table-fill': {
         if (!q.tableConfig?.interactiveCells || !answer) return 0;
         let totalCorrect = 0;
@@ -106,8 +92,7 @@ export default function TeacherResults() {
           }
         } else {
           q.tableConfig.interactiveCells.forEach(cell => {
-            const cellId = `${cell.r}-${cell.c}`;
-            const studentAns = answer[cellId];
+            const cellId = `${cell.r}-${cell.c}`; const studentAns = answer[cellId];
             const studentText = (typeof studentAns === 'object' ? studentAns?.text : studentAns) || '';
             const studentVal = studentText.toString().toLowerCase().trim();
             const correctVal = (q.tableData?.[cell.r][cell.c] || '').toLowerCase().trim();
@@ -259,7 +244,7 @@ export default function TeacherResults() {
             <div style={{ fontSize: '11px', fontWeight: '700', color: '#0066cc', marginBottom: '8px', textTransform: 'uppercase' }}>Modeloplossing</div>
             <div style={{ fontSize: '15px', color: '#1d1d1f' }}>
               {q.type === 'matching' ? (
-                <ul style={{ margin: 0, paddingLeft: '20px' }}>{q.matchingPairs?.map(p => <li key={p.id}><strong>{p.left}</strong> → {p.right}</li>)}</ul>
+                <ul style={{ margin: 0, paddingLeft: '20px' }}>{q.matchingPairs?.map(p => <li key={p.id}><strong>{p.left}</strong> {'\u2192'} {p.right}</li>)}</ul>
               ) : q.type === 'ordering' ? (
                 <ol style={{ margin: 0, paddingLeft: '20px' }}>{q.orderItems?.map((item, i) => <li key={i}>{item}</li>)}</ol>
               ) : q.type === 'definitions' ? (
@@ -294,7 +279,7 @@ export default function TeacherResults() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>{q.subQuestions?.map((sq, i) => <div key={sq.id} style={{ fontSize: '13px' }}><strong>{i + 1}. {sq.text}</strong>: <span style={{ color: '#0066cc' }}>{sq.correctAnswer || 'Geen'}</span></div>)}</div>
               ) : q.type === 'map' ? (
                 <div style={{ position: 'relative', width: '200px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #cce3ff' }}>
-                  <img src={q.image} crossOrigin="anonymous" style={{ width: '100%', opacity: 0.5 }} />
+                  <img src={q.image} style={{ width: '100%', opacity: 0.5 }} />
                   {q.locations?.map(loc => <div key={loc.id} style={{ position: 'absolute', left: `${loc.x}%`, top: `${loc.y}%`, transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}><div style={{ background: '#0066cc', color: 'white', fontSize: '6px', padding: '1px 3px', borderRadius: '2px' }}>{loc.label}</div><MapPin size={8} color="#0066cc" fill="white" /></div>)}
                 </div>
               ) : <div style={{ whiteSpace: 'pre-wrap' }}>{q.correctAnswer || 'Geen'}</div>}
@@ -305,7 +290,7 @@ export default function TeacherResults() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {q.options?.map((opt, idx) => {
                 const isSelected = answer === opt; const isCorrect = q.correctAnswer === opt;
-                return <div key={idx} style={{ padding: '16px 20px', borderRadius: '12px', border: '1px solid', background: isSelected ? (isCorrect ? '#f0fdf4' : '#fff1f2') : 'white', borderColor: isSelected ? (isCorrect ? '#22c55e' : '#ef4444') : '#d2d2d7', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span style={{ fontWeight: isSelected ? '700' : '500' }}>{opt}</span>{isSelected && (isCorrect ? <CheckCircle size={18} color=\"#22c55e\" /> : <XCircle size={18} color=\"#ef4444\" />)}</div>;
+                return <div key={idx} style={{ padding: '16px 20px', borderRadius: '12px', border: '1px solid', background: isSelected ? (isCorrect ? '#f0fdf4' : '#fff1f2') : 'white', borderColor: isSelected ? (isCorrect ? '#22c55e' : '#ef4444') : '#d2d2d7', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span style={{ fontWeight: isSelected ? '700' : '500' }}>{opt}</span>{isSelected && (isCorrect ? <CheckCircle size={18} color="#22c55e" /> : <XCircle size={18} color="#ef4444" />)}</div>;
               })}
             </div>
           ) : q.type === 'true-false' ? (
@@ -330,10 +315,10 @@ export default function TeacherResults() {
           ) : q.type === 'map' ? (
             <div style={{ position: 'relative', borderRadius: '16px', overflow: 'hidden', border: '1px solid #ddd', background: 'white' }}>
               <img src={q.image} style={{ width: '100%', display: 'block', opacity: 0.6 }} />
-              {q.locations?.map(loc => <div key={`target-${loc.id}`} style={{ position: 'absolute', left: `${loc.x}%`, top: `${loc.y}%`, transform: 'translate(-50%, -50%)', opacity: 0.15, pointerEvents: 'none' }}><MapPin size={16} color=\"#22c55e\" fill=\"#22c55e\" /></div>)}
+              {q.locations?.map(loc => <div key={`target-${loc.id}`} style={{ position: 'absolute', left: `${loc.x}%`, top: `${loc.y}%`, transform: 'translate(-50%, -50%)', opacity: 0.15, pointerEvents: 'none' }}><MapPin size={16} color="#22c55e" fill="#22c55e" /></div>)}
               {q.locations?.map(loc => {
                 const studentLoc = answer?.[loc.id];
-                return studentLoc && <div key={`student-${loc.id}`} style={{ position: 'absolute', left: `${studentLoc.x}%`, top: `${studentLoc.y}%`, transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}><div style={{ background: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: '700', marginBottom: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>{loc.label}</div><MapPin size={20} color=\"var(--system-blue)\" fill=\"var(--system-blue)\" /></div>;
+                return studentLoc && <div key={`student-${loc.id}`} style={{ position: 'absolute', left: `${studentLoc.x}%`, top: `${studentLoc.y}%`, transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}><div style={{ background: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: '700', marginBottom: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>{loc.label}</div><MapPin size={20} color="var(--system-blue)" fill="var(--system-blue)" /></div>;
               })}
             </div>
           ) : q.type === 'timeline' ? (

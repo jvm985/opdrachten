@@ -261,7 +261,13 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
               <input 
                 type="checkbox" 
                 checked={!!q.tableConfig?.ignoreRowOrder} 
-                onChange={e => handleUpdateQuestion(q.id, { tableConfig: { ...q.tableConfig, ignoreRowOrder: e.target.checked } })} 
+                onChange={e => handleUpdateQuestion(q.id, { 
+                  tableConfig: { 
+                    mode: q.tableConfig?.mode || 'type',
+                    interactiveCells: q.tableConfig?.interactiveCells || [],
+                    ignoreRowOrder: e.target.checked 
+                  } 
+                })} 
               />
               <span>Volgorde negeren</span>
             </label>

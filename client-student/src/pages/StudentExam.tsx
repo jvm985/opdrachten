@@ -4,7 +4,7 @@ import { Shield, ChevronLeft, ChevronRight, CheckCircle, Info, Calculator, Messa
 import { io, Socket } from 'socket.io-client';
 import type { Question } from '../types';
 
-const QuestionRenderer = ({ q, index, answers, setAnswers, handleDragStart, handleDropMap, handleSortStart, handleSortEnter, draggingIdx }: any) => {
+const QuestionRenderer = ({ q, answers, setAnswers, handleDragStart, handleDropMap, handleSortStart, handleSortEnter, draggingIdx }: any) => {
   return (
     <div className="animate-up">
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '32px', alignItems: 'center' }}>
@@ -149,7 +149,7 @@ const QuestionRenderer = ({ q, index, answers, setAnswers, handleDragStart, hand
           {q.tableConfig?.mode === 'drag' && (
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', padding: '20px', background: 'var(--system-secondary-bg)', borderRadius: '16px', minHeight: '60px' }}>
               {(() => {
-                const allTerms = (q.tableConfig?.interactiveCells || []).map(ic => ({ 
+                const allTerms = (q.tableConfig?.interactiveCells || []).map((ic: any) => ({ 
                   poolId: `${ic.r}-${ic.c}`, 
                   text: q.tableData?.[ic.r][ic.c] 
                 }));
@@ -157,9 +157,9 @@ const QuestionRenderer = ({ q, index, answers, setAnswers, handleDragStart, hand
                 const placedPoolIds = Object.values(currentAnswers).map((a: any) => a?.poolId);
                 
                 return allTerms
-                  .filter(term => !placedPoolIds.includes(term.poolId))
-                  .sort((a, b) => a.text.localeCompare(b.text))
-                  .map(term => (
+                  .filter((term: any) => !placedPoolIds.includes(term.poolId))
+                  .sort((a: any, b: any) => a.text.localeCompare(b.text))
+                  .map((term: any) => (
                     <div 
                       key={term.poolId} 
                       draggable 
@@ -170,14 +170,17 @@ const QuestionRenderer = ({ q, index, answers, setAnswers, handleDragStart, hand
                     </div>
                   ));
               })()}
+              {Object.keys(answers[q.id] || {}).length === (q.tableConfig?.interactiveCells || []).length && (
+                <p style={{ margin: 0, color: '#86868b', fontSize: '13px' }}>Alle termen zijn geplaatst.</p>
+              )}
             </div>
           )}
           <div style={{ overflowX: 'auto', background: 'white', borderRadius: '16px', border: '1px solid var(--system-border)', padding: '12px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <tbody>
-                {(q.tableData || []).map((row, rIdx) => (
+                {(q.tableData || []).map((row: any, rIdx: number) => (
                   <tr key={rIdx}>
-                    {row.map((cell, cIdx) => {
+                    {row.map((cell: any, cIdx: number) => {
                       const isInteractive = q.tableConfig?.interactiveCells?.some((ic: any) => ic.r === rIdx && ic.c === cIdx);
                       const cellId = `${rIdx}-${cIdx}`;
                       if (!isInteractive) {
@@ -188,7 +191,7 @@ const QuestionRenderer = ({ q, index, answers, setAnswers, handleDragStart, hand
                         );
                       }
                       const studentAns = answers[q.id]?.[cellId];
-                      const studentText = typeof studentAns === 'object' ? studentAns.text : studentAns;
+                      const studentText = (typeof studentAns === 'object' ? studentAns?.text : studentAns) || '';
 
                       return (
                         <td 
@@ -234,8 +237,10 @@ const QuestionRenderer = ({ q, index, answers, setAnswers, handleDragStart, hand
                                 cursor: 'pointer', 
                                 border: '1px dashed',
                                 borderColor: studentText ? 'var(--system-blue)' : '#fbc02d',
-                                color: studentText ? 'var(--system-blue)' : '#86868b'
+                                color: studentText ? 'var(--system-blue)' : '#86868b',
+                                transition: 'all 0.2s ease'
                               }}
+                              title={studentText ? "Klik om te verwijderen" : "Sleep hier een term naartoe"}
                             >
                               {studentText || ''}
                             </div>
@@ -272,7 +277,6 @@ const QuestionRenderer = ({ q, index, answers, setAnswers, handleDragStart, hand
               const range = end - start;
               const bucketSize = range / (q.totalBuckets || 5);
               const bucketStart = Math.floor(start + idx * bucketSize);
-              // Als het niet de eerste bucket is, begin dan op de vorige + 1 om overlap te vermijden
               const displayStart = idx === 0 ? bucketStart : Math.floor(start + idx * bucketSize) + 1;
               const bucketEnd = Math.floor(start + (idx + 1) * bucketSize);
               
@@ -567,63 +571,27 @@ export default function StudentExam() {
                     {exam.questions.map((q: any, idx: number) => {
                       const isCurrent = currentQuestionIndex === idx;
                       const isAnswered = isQuestionAnswered(q);
-                      
-                      let bgColor = 'white';
-                      let textColor = 'var(--system-text)';
-                      let borderColor = 'var(--system-border)';
-
-                      if (isAnswered) {
-                        bgColor = '#86868b'; // Donkergrijs
-                        textColor = 'white';
-                        borderColor = '#86868b';
-                      }
-                      
-                      if (isCurrent) {
-                        bgColor = 'var(--system-blue)'; // Blauw
-                        textColor = 'white';
-                        borderColor = 'var(--system-blue)';
-                      }
-
+                      let bgColor = 'white'; let textColor = 'var(--system-text)'; let borderColor = 'var(--system-border)';
+                      if (isAnswered) { bgColor = '#86868b'; textColor = 'white'; borderColor = '#86868b'; }
+                      if (isCurrent) { bgColor = 'var(--system-blue)'; textColor = 'white'; borderColor = 'var(--system-blue)'; }
                       return (
-                        <button 
-                          key={idx} 
-                          onClick={() => setCurrentQuestionIndex(idx)} 
-                          style={{ 
-                            width: '36px', height: '36px', borderRadius: '50%', 
-                            fontSize: '14px', fontWeight: '700', 
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                            background: bgColor, color: textColor, border: `1px solid ${borderColor}`,
-                            cursor: 'pointer', transition: 'all 0.2s ease',
-                            transform: isCurrent ? 'scale(1.15)' : 'scale(1)',
-                            boxShadow: isCurrent ? '0 4px 12px rgba(0,113,227,0.25)' : 'none'
-                          }}
-                          title={`Vraag ${idx + 1}`}
-                        >
-                          {idx + 1}
-                        </button>
+                        <button key={idx} onClick={() => setCurrentQuestionIndex(idx)} style={{ width: '36px', height: '36px', borderRadius: '50%', fontSize: '14px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bgColor, color: textColor, border: `1px solid ${borderColor}`, cursor: 'pointer', transition: 'all 0.2s ease', transform: isCurrent ? 'scale(1.15)' : 'scale(1)', boxShadow: isCurrent ? '0 4px 12px rgba(0,113,227,0.25)' : 'none' }} title={`Vraag ${idx + 1}`}>{idx + 1}</button>
                       );
                     })}
                   </nav>
-                  <QuestionRenderer q={exam.questions[currentQuestionIndex]} index={currentQuestionIndex} {...rendererProps} />
+                  <QuestionRenderer q={exam.questions[currentQuestionIndex]} {...rendererProps} />
                   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', marginTop: '60px', borderTop: '1px solid var(--system-border)', paddingTop: '40px' }}>
-                    <button className="btn btn-secondary" style={{ padding: '12px 32px' }} disabled={currentQuestionIndex === 0} onClick={() => setCurrentQuestionIndex(currentQuestionIndex - 1)}>
-                      <ChevronLeft size={16} /> Vorige
-                    </button>
-                    
+                    <button className="btn btn-secondary" style={{ padding: '12px 32px' }} disabled={currentQuestionIndex === 0} onClick={() => setCurrentQuestionIndex(currentQuestionIndex - 1)}><ChevronLeft size={16} /> Vorige</button>
                     {currentQuestionIndex === exam.questions.length - 1 ? (
-                      <button className="btn" style={{ padding: '12px 48px', fontSize: '17px', fontWeight: '700', boxShadow: '0 10px 20px rgba(0,113,227,0.3)' }} onClick={() => { if(confirm('Weet je zeker dat je wilt inleveren?')) submitExam(answers); }}>
-                        {exam.type?.toUpperCase() || 'EXAMEN'} INLEVEREN
-                      </button>
+                      <button className="btn" style={{ padding: '12px 48px', fontSize: '17px', fontWeight: '700', boxShadow: '0 10px 20px rgba(0,113,227,0.3)' }} onClick={() => { if(confirm('Weet je zeker dat je wilt inleveren?')) submitExam(answers); }}>{exam.type?.toUpperCase() || 'EXAMEN'} INLEVEREN</button>
                     ) : (
-                      <button className="btn btn-secondary" style={{ padding: '12px 32px' }} onClick={() => setCurrentQuestionIndex(currentQuestionIndex + 1)}>
-                        Volgende <ChevronRight size={16} />
-                      </button>
+                      <button className="btn btn-secondary" style={{ padding: '12px 32px' }} onClick={() => setCurrentQuestionIndex(currentQuestionIndex + 1)}>Volgende <ChevronRight size={16} /></button>
                     )}
                   </div>
                 </>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '64px' }}>
-                  {exam.questions.map((q: any, i: number) => <QuestionRenderer key={q.id} q={q} index={i} {...rendererProps} />)}
+                  {exam.questions.map((q: any) => <QuestionRenderer key={q.id} q={q} {...rendererProps} />)}
                   <div style={{ textAlign: 'center', paddingTop: '40px', borderTop: '1px solid var(--system-border)' }}>
                     <button className="btn" style={{ padding: '16px 40px', fontSize: '18px' }} onClick={() => { if(confirm('Weet je zeker dat je wilt inleveren?')) submitExam(answers); }}>{(exam.type || 'examen').charAt(0).toUpperCase() + (exam.type || 'examen').slice(1)} Inleveren</button>
                   </div>
