@@ -1,7 +1,7 @@
 export interface Location { id: string; label: string; x: number; y: number; }
 export interface DefinitionPair { id: string; definition: string; term: string; }
 export interface MatchingPair { id: string; left: string; right: string; }
-export interface SubQuestion { id: string; text: string; points: number; correctAnswer?: string; }
+export interface SubQuestion { id: string; text: string; points: number; }
 
 export interface Question {
   id: string;
@@ -40,14 +40,4 @@ export interface Exam {
   submissionCount: number;
   hasSubmissions: boolean;
   created_at: string;
-}
-
-export interface Submission {
-  id: string;
-  exam_id: string;
-  student_name: string;
-  student_klas: string;
-  answers: any;
-  scores: any;
-  submitted_at: string;
 }

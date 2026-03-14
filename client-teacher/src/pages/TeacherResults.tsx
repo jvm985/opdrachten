@@ -34,39 +34,158 @@ export default function TeacherResults() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasUnsavedChanges, examId]);
 
+  const calculateAutoScore = (q: Question, answer: any): number | null => {
+    if (answer === undefined || answer === null) return 0;
+
+    switch (q.type) {
+      case 'multiple-choice':
+        return answer === q.correctAnswer ? q.points : 0;
+      
+      case 'true-false':
+        return (answer?.value || answer) === q.correctAnswer ? q.points : 0;
+
+      case 'matching': {
+        if (!q.matchingPairs || !Array.isArray(answer)) return 0;
+        const correctCount = q.matchingPairs.filter((p, idx) => answer[idx]?.text === p.right).length;
+        return parseFloat(((correctCount / q.matchingPairs.length) * q.points).toFixed(2));
+      }
+
+      case 'ordering': {
+        if (!q.orderItems || !Array.isArray(answer)) return 0;
+        const correctCount = q.orderItems.filter((item, idx) => answer[idx]?.text === item).length;
+        return parseFloat(((correctCount / q.orderItems.length) * q.points).toFixed(2));
+      }
+
+      case 'definitions': {
+        if (!q.pairs) return 0;
+        const correctCount = q.pairs.filter(p => {
+          const studentTerm = (answer?.[p.id] || '').toLowerCase().trim();
+          return studentTerm === (p.term || '').toLowerCase().trim();
+        }).length;
+        return parseFloat(((correctCount / q.pairs.length) * q.points).toFixed(2));
+      }
+
+      case 'categorization': {
+        if (!q.items || !answer?.placed) return 0;
+        let correctCount = 0;
+        q.items.forEach(item => {
+          const studentCat = Object.keys(answer.placed).find(cat => answer.placed[cat].some((si: any) => si.id === item.id));
+          if (studentCat === item.category) correctCount++;
+        });
+        return parseFloat(((correctCount / q.items.length) * q.points).toFixed(2));
+      }
+
+      case 'timeline': {
+        if (!q.timelineData || !answer?.placed) return 0;
+        let correctCount = 0;
+        let totalEvents = 0;
+        
+        q.timelineData.forEach((bucket, correctIdx) => {
+          bucket.forEach(event => {
+            totalEvents++;
+            const studentBucketIdx = Object.keys(answer.placed).find(bIdx => 
+              answer.placed[bIdx].some((ev: any) => ev.id === event.id)
+            );
+            if (studentBucketIdx === correctIdx.toString()) correctCount++;
+          });
+        });
+        
+        if (totalEvents === 0) return 0;
+        return parseFloat(((correctCount / totalEvents) * q.points).toFixed(2));
+      }
+
+      case 'table-fill': {
+        if (!q.tableConfig?.interactiveCells || !answer) return 0;
+        let totalCorrect = 0;
+
+        if (q.tableConfig.ignoreRowOrder) {
+          const colCount = q.tableData?.[0].length || 0;
+          for (let c = 0; c < colCount; c++) {
+            const interactiveInCol = q.tableConfig.interactiveCells.filter(ic => ic.c === c);
+            if (interactiveInCol.length === 0) continue;
+
+            const correctValuesInCol = interactiveInCol.map(ic => (q.tableData?.[ic.r][ic.c] || '').toLowerCase().trim());
+            const studentValuesInCol = interactiveInCol.map(ic => {
+              const studentAns = answer[`${ic.r}-${ic.c}`];
+              const text = (typeof studentAns === 'object' ? studentAns?.text : studentAns) || '';
+              return text.toString().toLowerCase().trim();
+            }).filter(v => v !== '');
+
+            let colCorrect = 0;
+            const remainingCorrect = [...correctValuesInCol];
+            studentValuesInCol.forEach(sv => {
+              const idx = remainingCorrect.indexOf(sv);
+              if (idx !== -1) {
+                colCorrect++;
+                remainingCorrect.splice(idx, 1);
+              }
+            });
+            totalCorrect += colCorrect;
+          }
+        } else {
+          q.tableConfig.interactiveCells.forEach(cell => {
+            const cellId = `${cell.r}-${cell.c}`;
+            const studentAns = answer[cellId];
+            const studentText = (typeof studentAns === 'object' ? studentAns?.text : studentAns) || '';
+            const studentVal = studentText.toString().toLowerCase().trim();
+            const correctVal = (q.tableData?.[cell.r][cell.c] || '').toLowerCase().trim();
+            if (studentVal === correctVal) totalCorrect++;
+          });
+        }
+        return parseFloat(((totalCorrect / q.tableConfig.interactiveCells.length) * q.points).toFixed(2));
+      }
+
+      default:
+        return null;
+    }
+  };
+
   const fetchData = async () => {
     try {
       const [examRes, subsRes] = await Promise.all([
         fetch(`/api/exams/details/${examId}`),
         fetch(`/api/exams/${examId}/submissions`)
       ]);
-      const examData = await examRes.json();
-      const subsData = await subsRes.json();
+      const examData: Exam = await examRes.json();
+      const subsData: Submission[] = await subsRes.json();
       
       setExam(examData);
       setSubmissions(subsData);
       
-      // Initialize scores state from database
       const initialScores: Record<string, any> = {};
       subsData.forEach((s: Submission) => {
-        initialScores[s.id] = s.scores || {};
+        const scores = s.scores || {};
+        // Auto-grade ontbrekende scores
+        examData.questions.forEach(q => {
+          if (scores[q.id] === undefined || scores[q.id] === null) {
+            const auto = calculateAutoScore(q, s.answers[q.id]);
+            if (auto !== null) scores[q.id] = auto;
+          }
+        });
+        initialScores[s.id] = scores;
       });
       setAllManualScores(initialScores);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
   const fetchSubmissions = async () => {
     try {
       const res = await fetch(`/api/exams/${examId}/submissions`);
-      const data = await res.json();
+      const data: Submission[] = await res.json();
       setSubmissions(Array.isArray(data) ? data : []);
+      
       const updatedScores: Record<string, any> = {};
       data.forEach((s: Submission) => {
-        updatedScores[s.id] = s.scores || {};
+        const scores = s.scores || {};
+        if (exam) {
+          exam.questions.forEach(q => {
+            if (scores[q.id] === undefined || scores[q.id] === null) {
+              const auto = calculateAutoScore(q, s.answers[q.id]);
+              if (auto !== null) scores[q.id] = auto;
+            }
+          });
+        }
+        updatedScores[s.id] = scores;
       });
       setAllManualScores(updatedScores);
     } catch (e) { console.error(e); }
@@ -100,13 +219,15 @@ export default function TeacherResults() {
       await Promise.all(updates);
       setHasUnsavedChanges(false);
       alert('Opgeslagen');
-      fetchSubmissions();
+      // We doen GEEN fetchSubmissions() meer hier om verspringen te voorkomen.
+      // De lokale state 'allManualScores' is al up-to-date.
     } catch (e) { alert('Fout'); } finally { setIsSaving(false); }
   };
 
   const handleDeleteSubmission = async (id: string) => {
     if (!confirm('Inzending verwijderen?')) return;
     await fetch(`/api/submissions/${id}`, { method: 'DELETE' });
+    // Bij verwijderen is een refresh wel gewenst
     fetchSubmissions();
   };
 
@@ -169,10 +290,10 @@ export default function TeacherResults() {
         </div>
         {!showHeader && <h3 style={{ fontSize: '19px', fontWeight: '600', marginBottom: '24px' }}>{q.text}</h3>}
         <div style={{ background: '#f5f5f7', padding: '24px', borderRadius: '16px' }}>
-          {/* Modeloplossing (nieuw) */}
+          {/* Modeloplossing */}
           <div style={{ marginBottom: '24px', padding: '16px', background: '#f0f7ff', borderRadius: '12px', border: '1px solid #cce3ff' }}>
             <div style={{ fontSize: '11px', fontWeight: '700', color: '#0066cc', marginBottom: '8px', textTransform: 'uppercase' }}>Modeloplossing</div>
-            <div style={{ fontSize: '15px', color: '#1d1d1f', whiteSpace: 'pre-wrap' }}>
+            <div style={{ fontSize: '15px', color: '#1d1d1f' }}>
               {q.type === 'matching' ? (
                 <ul style={{ margin: 0, paddingLeft: '20px' }}>
                   {q.matchingPairs?.map(p => <li key={p.id}><strong>{p.left}</strong> → {p.right}</li>)}
@@ -185,7 +306,61 @@ export default function TeacherResults() {
                 <ul style={{ margin: 0, paddingLeft: '20px' }}>
                   {q.pairs?.map(p => <li key={p.id}><strong>{p.definition}</strong>: {p.term}</li>)}
                 </ul>
-              ) : q.correctAnswer || 'Geen modeloplossing opgegeven'}
+              ) : q.type === 'timeline' ? (
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${q.totalBuckets || 5}, 1fr)`, gap: '8px' }}>
+                  {(q.timelineData || []).map((bucket, idx) => {
+                    const bucketSize = ((q.endYear || 2025) - (q.startYear || 0)) / (q.totalBuckets || 5);
+                    const rawStart = Math.floor((q.startYear || 0) + idx * bucketSize);
+                    const displayStart = idx === 0 ? rawStart : rawStart + 1;
+                    const bEnd = Math.floor((q.startYear || 0) + (idx + 1) * bucketSize);
+                    return (
+                      <div key={idx} style={{ background: 'white', padding: '8px', borderRadius: '8px', border: '1px solid #cce3ff' }}>
+                        <div style={{ fontSize: '9px', fontWeight: 'bold', textAlign: 'center', marginBottom: '4px', borderBottom: '1px solid #eee' }}>{displayStart}-{bEnd}</div>
+                        {bucket.map(ev => <div key={ev.id} style={{ fontSize: '11px' }}>• {ev.text}</div>)}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : q.type === 'table-fill' ? (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '12px' }}>
+                    <tbody>
+                      {(q.tableData || []).map((row, rIdx) => (
+                        <tr key={rIdx}>
+                          {row.map((cell, cIdx) => {
+                            const isInteractive = q.tableConfig?.interactiveCells?.some(ic => ic.r === rIdx && ic.c === cIdx);
+                            return (
+                              <td key={cIdx} style={{ border: '1px solid #eee', padding: '8px', background: rIdx === 0 ? '#0066cc' : (isInteractive ? '#fff9c4' : 'white'), color: rIdx === 0 ? 'white' : 'black', fontWeight: rIdx === 0 ? 'bold' : 'normal' }}>
+                                {cell}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : q.type === 'image-analysis' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {q.subQuestions?.map((sq, i) => (
+                    <div key={sq.id} style={{ fontSize: '13px' }}>
+                      <strong>{i + 1}. {sq.text}</strong>: <span style={{ color: '#0066cc' }}>{sq.correctAnswer || 'Geen modeloplossing'}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : q.type === 'map' ? (
+                <div style={{ position: 'relative', width: '200px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #cce3ff' }}>
+                  <img src={q.image} crossOrigin="anonymous" style={{ width: '100%', opacity: 0.5 }} />
+                  {q.locations?.map(loc => (
+                    <div key={loc.id} style={{ position: 'absolute', left: `${loc.x}%`, top: `${loc.y}%`, transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <div style={{ background: '#0066cc', color: 'white', fontSize: '6px', padding: '1px 3px', borderRadius: '2px' }}>{loc.label}</div>
+                      <MapPin size={8} color="#0066cc" fill="white" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ whiteSpace: 'pre-wrap' }}>{q.correctAnswer || 'Geen modeloplossing opgegeven'}</div>
+              )}
             </div>
           </div>
 
@@ -221,7 +396,7 @@ export default function TeacherResults() {
             </div>
           ) : q.type === 'image-analysis' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <img src={q.image} crossOrigin="anonymous" style={{ width: '100%', borderRadius: '12px', border: '1px solid #ddd' }} />
+              <img src={q.image} style={{ width: '100%', borderRadius: '12px', border: '1px solid #ddd' }} />
               {q.subQuestions?.map((sq, idx) => (
                 <div key={sq.id} style={{ padding: '20px', background: 'white', borderRadius: '14px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
@@ -244,14 +419,14 @@ export default function TeacherResults() {
             </div>
           ) : q.type === 'map' ? (
             <div style={{ position: 'relative', borderRadius: '16px', overflow: 'hidden', border: '1px solid #ddd', background: 'white' }}>
-              <img src={q.image} crossOrigin="anonymous" style={{ width: '100%', display: 'block', opacity: 0.6 }} />
+              <img src={q.image} style={{ width: '100%', display: 'block', opacity: 0.6 }} />
               {q.locations?.map(loc => (
-                <div key={`target-${loc.id}`} style={{ position: 'absolute', left: `${loc.x}%`, top: `${loc.y}%`, transform: 'translate(-50%, -50%)', opacity: 0.4 }}>
-                  <MapPin size={24} color="#22c55e" fill="#22c55e" />
+                <div key={`target-${loc.id}`} style={{ position: 'absolute', left: `${loc.x}%`, top: `${loc.y}%`, transform: 'translate(-50%, -50%)', opacity: 0.15, pointerEvents: 'none' }}>
+                  <MapPin size={16} color="#22c55e" fill="#22c55e" />
                 </div>
               ))}
               {q.locations?.map(loc => {
-                const studentLoc = answer?.find((al: any) => al.id === loc.id);
+                const studentLoc = answer?.[loc.id];
                 return studentLoc && (
                   <div key={`student-${loc.id}`} style={{ position: 'absolute', left: `${studentLoc.x}%`, top: `${studentLoc.y}%`, transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <div style={{ background: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: '700', marginBottom: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>{loc.label}</div>
@@ -325,6 +500,100 @@ export default function TeacherResults() {
                   </div>
                 );
               })}
+            </div>
+          ) : q.type === 'categorization' ? (
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${(q.categories || []).length}, 1fr)`, gap: '16px' }}>
+              {(q.categories || []).map(cat => (
+                <div key={cat} style={{ background: 'white', border: '1px solid var(--system-border)', borderRadius: '12px', minHeight: '100px' }}>
+                  <div style={{ padding: '8px', textAlign: 'center', fontWeight: '700', borderBottom: '1px solid #f5f5f7', fontSize: '12px' }}>{cat}</div>
+                  <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {(answer?.placed?.[cat] || []).map((si: any) => {
+                      const originalItem = q.items?.find(it => it.id === si.id);
+                      const isCorrect = originalItem?.category === cat;
+                      return (
+                        <div key={si.id} style={{ padding: '6px 10px', borderRadius: '6px', background: isCorrect ? '#f0fdf4' : '#fff1f2', border: '1px solid', borderColor: isCorrect ? '#22c55e' : '#ef4444', fontSize: '12px', fontWeight: '500', color: isCorrect ? '#166534' : '#991b1b', textAlign: 'center' }}>
+                          {si.text}
+                          {!isCorrect && <div style={{ fontSize: '9px', opacity: 0.7 }}>Hoort in: {originalItem?.category}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : q.type === 'timeline' ? (
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${q.totalBuckets || 5}, 1fr)`, gap: '10px' }}>
+              {Array.from({ length: q.totalBuckets || 5 }).map((_, idx) => {
+                const bucketSize = ((q.endYear || 2025) - (q.startYear || 0)) / (q.totalBuckets || 5);
+                const rawStart = Math.floor((q.startYear || 0) + idx * bucketSize);
+                const displayStart = idx === 0 ? rawStart : rawStart + 1;
+                const bEnd = Math.floor((q.startYear || 0) + (idx + 1) * bucketSize);
+                return (
+                  <div key={idx} style={{ background: 'white', border: '1px solid var(--system-border)', borderRadius: '12px', minHeight: '100px' }}>
+                    <div style={{ padding: '6px', textAlign: 'center', fontSize: '9px', fontWeight: '700', borderBottom: '1px solid #f5f5f7', background: '#fafafa', borderRadius: '12px 12px 0 0' }}>{displayStart}-{bEnd}</div>
+                    <div style={{ padding: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {(answer?.placed?.[idx] || []).map((ev: any) => {
+                        const originalEvent = q.timelineEvents?.find(e => e.id === ev.id);
+                        const correctBucketIdx = Math.min(Math.floor(((originalEvent?.year || 0) - (q.startYear || 0)) / bucketSize), (q.totalBuckets || 5) - 1);
+                        const isCorrect = correctBucketIdx === idx;
+                        return (
+                          <div key={ev.id} style={{ padding: '4px 6px', borderRadius: '4px', background: isCorrect ? '#f0fdf4' : '#fff1f2', border: '1px solid', borderColor: isCorrect ? '#22c55e' : '#ef4444', fontSize: '11px', textAlign: 'center', color: isCorrect ? '#166534' : '#991b1b' }}>
+                            {ev.text}
+                            {!isCorrect && <div style={{ fontSize: '8px', opacity: 0.7 }}>Jaar: {originalEvent?.year}</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : q.type === 'table-fill' ? (
+            <div style={{ overflowX: 'auto', background: 'white', borderRadius: '12px', border: '1px solid var(--system-border)', padding: '12px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <tbody>
+                  {(q.tableData || []).map((row, rIdx) => (
+                    <tr key={rIdx}>
+                      {row.map((cell, cIdx) => {
+                        const isInteractive = q.tableConfig?.interactiveCells?.some(ic => ic.r === rIdx && ic.c === cIdx);
+                        if (!isInteractive) {
+                          return (
+                            <td key={cIdx} style={{ border: '1px solid #eee', padding: '10px', background: rIdx === 0 ? '#f5f5f7' : '#fafafa', fontSize: '13px', fontWeight: rIdx === 0 ? 'bold' : 'normal', textAlign: 'center' }}>
+                              {cell}
+                            </td>
+                          );
+                        }
+                        const cellId = `${rIdx}-${cIdx}`;
+                        const studentAns = answer?.[cellId];
+                        const studentText = (typeof studentAns === 'object' ? studentAns?.text : studentAns) || '';
+                        
+                        let isCorrect = false;
+                        if (q.tableConfig?.ignoreRowOrder) {
+                          // Kijk of deze student-waarde ergens in de correcte waarden van DEZE kolom voorkomt
+                          const correctValuesInCol = (q.tableConfig?.interactiveCells || [])
+                            .filter(ic => ic.c === cIdx)
+                            .map(ic => (q.tableData?.[ic.r][ic.c] || '').toLowerCase().trim());
+                          isCorrect = studentText !== '' && correctValuesInCol.includes(studentText.toLowerCase().trim());
+                        } else {
+                          // Exacte match op deze cel
+                          isCorrect = studentText.toLowerCase().trim() === cell.toLowerCase().trim();
+                        }
+
+                        return (
+                          <td key={cIdx} style={{ border: '1px solid #eee', padding: '8px', textAlign: 'center' }}>
+                            <div style={{ padding: '6px', borderRadius: '6px', background: isCorrect ? '#f0fdf4' : '#fff1f2', border: '1px solid', borderColor: isCorrect ? '#22c55e' : '#ef4444', color: isCorrect ? '#166534' : '#991b1b', fontSize: '13px', fontWeight: '600' }}>
+                              {studentText || '-'}
+                              {!isCorrect && studentText && <div style={{ fontSize: '10px', marginTop: '4px', borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: '4px' }}>
+                                {q.tableConfig?.ignoreRowOrder ? 'Hoort niet in deze kolom' : `Correct: ${cell}`}
+                              </div>}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
             <div style={{ fontSize: '17px', whiteSpace: 'pre-wrap' }}>{answer || <i style={{ color: '#aaa' }}>Geen antwoord</i>}</div>

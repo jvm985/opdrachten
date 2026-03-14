@@ -23,6 +23,8 @@ export const initDb = () => {
           is_graded INTEGER DEFAULT 1,
           require_fullscreen INTEGER DEFAULT 1,
           detect_tab_switch INTEGER DEFAULT 1,
+          is_shared INTEGER DEFAULT 0,
+          is_deleted INTEGER DEFAULT 0,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `, (err) => {
@@ -32,6 +34,8 @@ export const initDb = () => {
         db.run('ALTER TABLE exams ADD COLUMN is_graded INTEGER DEFAULT 1', () => {});
         db.run('ALTER TABLE exams ADD COLUMN require_fullscreen INTEGER DEFAULT 1', () => {});
         db.run('ALTER TABLE exams ADD COLUMN detect_tab_switch INTEGER DEFAULT 1', () => {});
+        db.run('ALTER TABLE exams ADD COLUMN is_shared INTEGER DEFAULT 0', () => {});
+        db.run('ALTER TABLE exams ADD COLUMN is_deleted INTEGER DEFAULT 0', () => {});
       });
 
       // Users table
@@ -96,10 +100,12 @@ export const initDb = () => {
           points INTEGER NOT NULL,
           data TEXT NOT NULL, -- JSON for type-specific data
           labels TEXT, -- JSON array
+          is_shared INTEGER DEFAULT 0,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `, (err) => {
         if (err) console.error('CREATE TABLE questions_bank Error:', err);
+        db.run('ALTER TABLE questions_bank ADD COLUMN is_shared INTEGER DEFAULT 0', () => {});
       });
 
       // Students table (from PDF)

@@ -100,12 +100,12 @@ app.get('/api/students', (req, res) => {
 });
 
 app.post('/api/exams', (req, res) => {
-  const { teacherId, title, questions, labels, type, isGraded, requireFullscreen, detectTabSwitch } = req.body;
+  const { teacherId, title, questions, labels, type, isGraded, requireFullscreen, detectTabSwitch, isShared } = req.body;
   const examKey = Math.random().toString(36).substring(7).toUpperCase();
   const examId = randomUUID();
   db.run(
-    'INSERT INTO exams (id, teacher_id, title, exam_key, questions, labels, type, is_graded, require_fullscreen, detect_tab_switch) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [examId, teacherId, title, examKey, JSON.stringify(questions), JSON.stringify(labels || []), type || 'examen', isGraded ? 1 : 0, requireFullscreen ? 1 : 0, detectTabSwitch ? 1 : 0],
+    'INSERT INTO exams (id, teacher_id, title, exam_key, questions, labels, type, is_graded, require_fullscreen, detect_tab_switch, is_shared) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [examId, teacherId, title, examKey, JSON.stringify(questions), JSON.stringify(labels || []), type || 'examen', isGraded ? 1 : 0, requireFullscreen ? 1 : 0, detectTabSwitch ? 1 : 0, isShared ? 1 : 0],
     (err) => {
       if (err) return res.status(500).json({ error: 'DB Error' });
       res.json({ title, examKey, id: examId });
@@ -113,10 +113,10 @@ app.post('/api/exams', (req, res) => {
   );
 });
 app.put('/api/exams/:id', (req, res) => {
-  const { title, questions, labels, type, isGraded, requireFullscreen, detectTabSwitch } = req.body;
+  const { title, questions, labels, type, isGraded, requireFullscreen, detectTabSwitch, isShared } = req.body;
   db.run(
-    'UPDATE exams SET title = ?, questions = ?, labels = ?, type = ?, is_graded = ?, require_fullscreen = ?, detect_tab_switch = ? WHERE id = ?',
-    [title, JSON.stringify(questions), JSON.stringify(labels || []), type || 'examen', isGraded ? 1 : 0, requireFullscreen ? 1 : 0, detectTabSwitch ? 1 : 0, req.params.id],
+    'UPDATE exams SET title = ?, questions = ?, labels = ?, type = ?, is_graded = ?, require_fullscreen = ?, detect_tab_switch = ?, is_shared = ? WHERE id = ?',
+    [title, JSON.stringify(questions), JSON.stringify(labels || []), type || 'examen', isGraded ? 1 : 0, requireFullscreen ? 1 : 0, detectTabSwitch ? 1 : 0, isShared ? 1 : 0, req.params.id],
     (err) => {
       if (err) return res.status(500).json({ error: 'DB Error' });
       db.get('SELECT exam_key FROM exams WHERE id = ?', [req.params.id], (err, row: any) => {
@@ -126,27 +126,89 @@ app.put('/api/exams/:id', (req, res) => {
   );
 });
 
-app.delete('/api/exams/:id', (req, res) => {
-  db.run('DELETE FROM exams WHERE id = ?', [req.params.id], (err) => {
-    res.json({ success: true });
-  });
-});
-
 app.get('/api/teacher/exams', (req, res) => {
   const { teacherId } = req.query;
-  const sql = `
-    SELECT e.*, (SELECT COUNT(*) FROM submissions s WHERE s.exam_id = e.id) as submission_count
-    FROM exams e WHERE e.teacher_id = ? ORDER BY created_at DESC
-  `;
-  db.all(sql, [teacherId], (err, rows: any[]) => {
+  db.all(`
+    SELECT e.*, 
+    (SELECT COUNT(*) FROM submissions WHERE exam_id = e.id) as submission_count
+    FROM exams e 
+    WHERE e.teacher_id = ? AND e.is_deleted = 0
+    ORDER BY e.created_at DESC`, [teacherId], (err, rows: any[]) => {
     const result = (rows || []).map(r => ({ 
       ...r, questions: JSON.parse(r.questions),
       labels: r.labels ? JSON.parse(r.labels) : [],
       isGraded: !!r.is_graded,
       requireFullscreen: !!r.require_fullscreen,
       detectTabSwitch: !!r.detect_tab_switch,
+      isShared: !!r.is_shared,
+      isDeleted: !!r.is_deleted,
       submissionCount: r.submission_count,
       hasSubmissions: r.submission_count > 0
+    }));
+    res.json(result);
+  });
+});
+
+app.get('/api/teacher/trashed-exams', (req, res) => {
+  const { teacherId } = req.query;
+  db.all(`
+    SELECT e.*, 
+    (SELECT COUNT(*) FROM submissions WHERE exam_id = e.id) as submission_count
+    FROM exams e 
+    WHERE e.teacher_id = ? AND e.is_deleted = 1
+    ORDER BY e.created_at DESC`, [teacherId], (err, rows: any[]) => {
+    const result = (rows || []).map(r => ({ 
+      ...r, questions: JSON.parse(r.questions),
+      labels: r.labels ? JSON.parse(r.labels) : [],
+      isGraded: !!r.is_graded,
+      requireFullscreen: !!r.require_fullscreen,
+      detectTabSwitch: !!r.detect_tab_switch,
+      isShared: !!r.is_shared,
+      isDeleted: !!r.is_deleted,
+      submissionCount: r.submission_count,
+      hasSubmissions: r.submission_count > 0
+    }));
+    res.json(result);
+  });
+});
+
+app.post('/api/exams/:id/restore', (req, res) => {
+  db.run('UPDATE exams SET is_deleted = 0 WHERE id = ?', [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: 'DB Error' });
+    res.json({ success: true });
+  });
+});
+
+app.delete('/api/exams/:id/permanent', (req, res) => {
+  db.run('DELETE FROM exams WHERE id = ?', [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: 'DB Error' });
+    res.json({ success: true });
+  });
+});
+
+app.delete('/api/exams/:id', (req, res) => {
+  db.run('UPDATE exams SET is_deleted = 1 WHERE id = ?', [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: 'DB Error' });
+    res.json({ success: true });
+  });
+});
+
+app.get('/api/teacher/shared-exams', (req, res) => {
+  const { teacherId } = req.query;
+  db.all(`
+    SELECT e.*, u.name as teacher_name
+    FROM exams e
+    JOIN users u ON e.teacher_id = u.id
+    WHERE e.is_shared = 1 AND e.teacher_id != ?
+    ORDER BY e.created_at DESC`, [teacherId], (err, rows: any[]) => {
+    const result = (rows || []).map(r => ({ 
+      ...r, questions: JSON.parse(r.questions),
+      labels: r.labels ? JSON.parse(r.labels) : [],
+      isGraded: !!r.is_graded,
+      requireFullscreen: !!r.require_fullscreen,
+      detectTabSwitch: !!r.detect_tab_switch,
+      isShared: true,
+      teacherName: r.teacher_name
     }));
     res.json(result);
   });
@@ -155,18 +217,42 @@ app.get('/api/teacher/exams', (req, res) => {
 app.get('/api/questions-bank', (req, res) => {
   const { teacherId } = req.query;
   db.all('SELECT * FROM questions_bank WHERE teacher_id = ? ORDER BY created_at DESC', [teacherId], (err, rows: any[]) => {
-    const result = (rows || []).map(r => ({ id: r.id, type: r.type, text: r.text, points: r.points, labels: r.labels ? JSON.parse(r.labels) : [], ...JSON.parse(r.data) }));
+    const result = (rows || []).map(r => ({ 
+      id: r.id, type: r.type, text: r.text, points: r.points, 
+      labels: r.labels ? JSON.parse(r.labels) : [], 
+      isShared: !!r.is_shared,
+      ...JSON.parse(r.data) 
+    }));
+    res.json(result);
+  });
+});
+
+app.get('/api/questions-bank/shared', (req, res) => {
+  const { teacherId } = req.query;
+  db.all(`
+    SELECT q.*, u.name as teacher_name 
+    FROM questions_bank q 
+    JOIN users u ON q.teacher_id = u.id
+    WHERE q.is_shared = 1 AND q.teacher_id != ? 
+    ORDER BY q.created_at DESC`, [teacherId], (err, rows: any[]) => {
+    const result = (rows || []).map(r => ({ 
+      id: r.id, type: r.type, text: r.text, points: r.points, 
+      labels: r.labels ? JSON.parse(r.labels) : [], 
+      isShared: true,
+      teacherName: r.teacher_name,
+      ...JSON.parse(r.data) 
+    }));
     res.json(result);
   });
 });
 
 app.post('/api/questions-bank', (req, res) => {
-  const { teacherId, question, labels, forceNew } = req.body;
+  const { teacherId, question, labels, forceNew, isShared } = req.body;
   const { id, type, text, points, ...rest } = question;
   const questionIdToStore = forceNew ? randomUUID() : id;
   db.run(
-    `INSERT OR REPLACE INTO questions_bank (id, teacher_id, type, text, points, data, labels) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [questionIdToStore, teacherId, type, text, points, JSON.stringify(rest), JSON.stringify(labels || [])],
+    `INSERT OR REPLACE INTO questions_bank (id, teacher_id, type, text, points, data, labels, is_shared) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [questionIdToStore, teacherId, type, text, points, JSON.stringify(rest), JSON.stringify(labels || []), isShared ? 1 : 0],
     (err) => {
       res.json({ success: true, id: questionIdToStore });
     }
@@ -175,6 +261,13 @@ app.post('/api/questions-bank', (req, res) => {
 
 app.delete('/api/questions-bank/:id', (req, res) => {
   db.run('DELETE FROM questions_bank WHERE id = ?', [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: 'DB Error' });
+    res.json({ success: true });
+  });
+});
+
+app.delete('/api/submissions/:id', (req, res) => {
+  db.run('DELETE FROM submissions WHERE id = ?', [req.params.id], (err) => {
     if (err) return res.status(500).json({ error: 'DB Error' });
     res.json({ success: true });
   });
@@ -228,9 +321,18 @@ app.post('/api/submissions', (req, res) => {
     'INSERT INTO submissions (id, exam_id, student_name, student_klas, answers) VALUES (?, ?, ?, ?, ?)',
     [randomUUID(), examId, name, klas, JSON.stringify(answers || {})],
     (err) => {
+      if (err) return res.status(500).json({ error: 'DB Error' });
+      
+      // Breng live-view op de hoogte (per examen)
       db.get('SELECT exam_key FROM exams WHERE id = ?', [examId], (err, row: any) => {
-        if (!err && row) io.to(`teacher_${row.exam_key}`).emit('student_finished', { name });
+        if (!err && row) {
+          io.to(`teacher_${row.exam_key}`).emit('student_finished', { name });
+        }
       });
+
+      // Breng dashboard op de hoogte (globaal voor tellers)
+      io.emit('submission_received', { examId });
+      
       res.json({ success: true });
     }
   );

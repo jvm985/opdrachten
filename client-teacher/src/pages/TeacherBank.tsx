@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trash2, Search, Edit3, Save } from 'lucide-react';
+import { ArrowLeft, Trash2, Search, Edit3, Save, X } from 'lucide-react';
 import { TopNav } from '../components/TopNav';
 import { QuestionEditor } from '../components/QuestionEditor';
 import type { Question } from '../types';
@@ -54,7 +54,8 @@ export default function TeacherBank() {
           teacherId: user.id, 
           question: editingQuestion, 
           labels: editingQuestion.labels, 
-          forceNew: false 
+          forceNew: false,
+          isShared: editingQuestion.isShared
         }),
       });
       if (res.ok) {
@@ -110,10 +111,42 @@ export default function TeacherBank() {
                 <button className="btn btn-secondary" style={{ borderRadius: '50%', width: '40px', height: '40px', padding: 0 }} onClick={() => setEditingQuestion(null)}><ArrowLeft size={20}/></button>
                 <h1 style={{ fontSize: '32px', fontWeight: '700', margin: 0 }}>Vraag bewerken</h1>
               </div>
-              <button className="btn" onClick={handleSaveEdit} disabled={isSaving}>
-                <Save size={18} style={{ marginRight: '8px' }} /> {isSaving ? 'Bezig...' : 'Opslaan in bank'}
-              </button>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', padding: '8px 16px', borderRadius: '10px', border: '1px solid #d2d2d7', cursor: 'pointer', fontSize: '14px' }}>
+                  <input type="checkbox" checked={!!editingQuestion.isShared} onChange={e => setEditingQuestion({ ...editingQuestion, isShared: e.target.checked })} />
+                  <span>Gedeeld met collega's</span>
+                </label>
+                <button className="btn" onClick={handleSaveEdit} disabled={isSaving}>
+                  <Save size={18} style={{ marginRight: '8px' }} /> {isSaving ? 'Bezig...' : 'Opslaan in bank'}
+                </button>
+              </div>
             </header>
+
+            <div className="card" style={{ marginBottom: '24px', padding: '24px', borderRadius: '20px' }}>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#86868b', marginBottom: '8px', textTransform: 'uppercase' }}>Labels</label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '12px' }}>
+                <input 
+                  className="input" 
+                  placeholder="Nieuw label..." 
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      const val = (e.target as HTMLInputElement).value.trim();
+                      if (val && !editingQuestion.labels?.includes(val)) {
+                        setEditingQuestion({ ...editingQuestion, labels: [...(editingQuestion.labels || []), val] });
+                      }
+                      (e.target as HTMLInputElement).value = '';
+                    }
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {editingQuestion.labels?.map(l => (
+                  <span key={l} className="badge" style={{ background: '#f5f5f7', padding: '4px 8px', borderRadius: '6px', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {l} <X size={10} style={{ cursor: 'pointer' }} onClick={() => setEditingQuestion({ ...editingQuestion, labels: editingQuestion.labels?.filter(x => x !== l) })} />
+                  </span>
+                ))}
+              </div>
+            </div>
 
             <QuestionEditor 
               q={editingQuestion} 

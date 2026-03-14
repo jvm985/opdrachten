@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Edit3, ArrowLeft, Save, X, Database, Search, Copy, Eye, Printer, Play, BarChart3, MoreVertical, Lock } from 'lucide-react';
+import { io } from 'socket.io-client';
+import { Plus, Trash2, Edit3, ArrowLeft, Save, X, Database, Search, Copy, Eye, Printer, Play, BarChart3, MoreVertical, Lock, Share2, Users, Layout, LayoutList } from 'lucide-react';
 import { TopNav } from '../components/TopNav';
 import { QuestionEditor } from '../components/QuestionEditor';
 import type { Question, Exam } from '../types';
@@ -9,20 +10,25 @@ export default function TeacherDashboard() {
   const navigate = useNavigate();
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const [exams, setExams] = useState<Exam[]>([]);
+  const [sharedExams, setSharedExams] = useState<Exam[]>([]);
+  const [activeTab, setActiveTab] = useState<'mine' | 'shared'>('mine');
   const [filteredExams, setFilteredExams] = useState<Exam[]>([]);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [viewMode] = useState<'single' | 'list'>('single');
+  const [viewMode, setViewMode] = useState<'single' | 'list'>('single');
   const [showBank, setShowBank] = useState(false);
   const [bankQuestions, setBankQuestions] = useState<Question[]>([]);
+  const [sharedBankQuestions, setSharedBankQuestions] = useState<Question[]>([]);
   const [bankSearch, setBankSearch] = useState('');
+  const [bankTab, setBankTab] = useState<'mine' | 'shared'>('mine');
   const [currentExamId, setCurrentExamId] = useState<string | null>(null);
   const [hasSubmissions, setHasSubmissions] = useState(false);
   
   const [title, setTitle] = useState('');
   const [type, setType] = useState<'taak' | 'toets' | 'examen' | 'formulier'>('examen');
   const [isGraded, setIsGraded] = useState(true);
+  const [isShared, setIsShared] = useState(false);
   const [requireFullscreen, setRequireFullscreen] = useState(true);
   const [detectTabSwitch, setDetectTabSwitch] = useState(true);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -59,15 +65,26 @@ export default function TeacherDashboard() {
   useEffect(() => {
     if (user.role !== 'teacher') { navigate('/login'); return; }
     fetchExams();
+    fetchSharedExams();
+
+    const socket = io();
+    socket.on('submission_received', ({ examId }) => {
+      setExams(prev => prev.map(e => e.id === examId ? { ...e, submissionCount: e.submissionCount + 1, hasSubmissions: true } : e));
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   useEffect(() => {
+    const list = activeTab === 'mine' ? exams : sharedExams;
     if (activeFilters.length > 0) {
-      setFilteredExams(exams.filter(e => activeFilters.every(filter => e.labels.includes(filter))));
+      setFilteredExams(list.filter(e => activeFilters.every(filter => e.labels.includes(filter))));
     } else {
-      setFilteredExams(exams);
+      setFilteredExams(list);
     }
-  }, [activeFilters, exams]);
+  }, [activeFilters, exams, sharedExams, activeTab]);
 
   const fetchExams = async () => {
     try {
@@ -77,17 +94,30 @@ export default function TeacherDashboard() {
     } catch (e) { console.error(e); }
   };
 
+  const fetchSharedExams = async () => {
+    try {
+      const res = await fetch(`/api/teacher/shared-exams?teacherId=${user.id}`);
+      const data = await res.json();
+      setSharedExams(Array.isArray(data) ? data : []);
+    } catch (e) { console.error(e); }
+  };
+
   const fetchBank = async () => {
     try {
-      const res = await fetch(`/api/questions-bank?teacherId=${user.id}`);
-      const data = await res.json();
-      setBankQuestions(Array.isArray(data) ? data : []);
+      const [mineRes, sharedRes] = await Promise.all([
+        fetch(`/api/questions-bank?teacherId=${user.id}`),
+        fetch(`/api/questions-bank/shared?teacherId=${user.id}`)
+      ]);
+      const mineData = await mineRes.json();
+      const sharedData = await sharedRes.json();
+      setBankQuestions(Array.isArray(mineData) ? mineData : []);
+      setSharedBankQuestions(Array.isArray(sharedData) ? sharedData : []);
       setShowBank(true);
     } catch (e) { console.error(e); }
   };
 
   const handleStartCreate = () => {
-    setCurrentExamId(null); setHasSubmissions(false); setTitle(''); setType('examen'); setIsGraded(true); 
+    setCurrentExamId(null); setHasSubmissions(false); setTitle(''); setType('examen'); setIsGraded(true); setIsShared(false);
     setRequireFullscreen(true); setDetectTabSwitch(true); setLabels([]);
     setQuestions([{ id: Math.random().toString(36).substr(2, 9), type: 'open', text: '', points: 1, correctAnswer: '' }]);
     setCurrentQuestionIndex(0); setIsEditing(true);
@@ -96,6 +126,7 @@ export default function TeacherDashboard() {
   const handleStartEdit = (exam: Exam) => {
     setCurrentExamId(exam.id); setHasSubmissions(exam.hasSubmissions); setTitle(exam.title);
     setType(exam.type || 'examen'); setIsGraded(exam.isGraded !== undefined ? exam.isGraded : true);
+    setIsShared(!!exam.isShared);
     setRequireFullscreen(exam.requireFullscreen !== undefined ? exam.requireFullscreen : true);
     setDetectTabSwitch(exam.detectTabSwitch !== undefined ? exam.detectTabSwitch : true);
     setQuestions(exam.questions); setLabels(exam.labels || []); setCurrentQuestionIndex(0); setIsEditing(true);
@@ -110,6 +141,17 @@ export default function TeacherDashboard() {
     setQuestions(questions.map(q => q.id === id ? { ...q, ...updates } : q));
   };
 
+  const handleToggleShare = async (exam: Exam) => {
+    const newShared = !exam.isShared;
+    await fetch(`/api/exams/${exam.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...exam, isShared: newShared }),
+    });
+    fetchExams();
+    alert(newShared ? 'Toets gedeeld met collega\'s' : 'Toets niet meer gedeeld');
+  };
+
   const handleSaveExam = async (stayInEditMode = false) => {
     if (!title) return alert('Titel verplicht');
     setIsLoading(true);
@@ -118,7 +160,7 @@ export default function TeacherDashboard() {
       const url = currentExamId ? `/api/exams/${currentExamId}` : '/api/exams';
       const res = await fetch(url, {
         method, headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teacherId: user.id, title, questions, labels, type, isGraded, requireFullscreen, detectTabSwitch }),
+        body: JSON.stringify({ teacherId: user.id, title, questions, labels, type, isGraded, requireFullscreen, detectTabSwitch, isShared }),
       });
       const data = await res.json();
       if (res.ok) { if (!stayInEditMode) setIsEditing(false); fetchExams(); return data; }
@@ -141,7 +183,8 @@ export default function TeacherDashboard() {
   const handleAddQuestion = () => {
     if (hasSubmissions) return;
     const newQ: Question = { id: Math.random().toString(36).substr(2, 9), type: 'open', text: '', points: 1, correctAnswer: '' };
-    setQuestions([...questions, newQ]); setCurrentQuestionIndex(questions.length);
+    setQuestions([...questions, newQ]); 
+    setCurrentQuestionIndex(questions.length);
   };
 
   const handleRemoveQuestion = (idx: number) => {
@@ -175,9 +218,10 @@ export default function TeacherDashboard() {
       await fetch('/api/exams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teacherId: user.id, title: `${exam.title} (kopie)`, questions: exam.questions, labels: exam.labels, type: exam.type, isGraded: exam.isGraded, requireFullscreen: exam.requireFullscreen, detectTabSwitch: exam.detectTabSwitch }),
+        body: JSON.stringify({ teacherId: user.id, title: `${exam.title} (kopie)`, questions: exam.questions, labels: exam.labels, type: exam.type, isGraded: exam.isGraded, requireFullscreen: exam.requireFullscreen, detectTabSwitch: exam.detectTabSwitch, isShared: false }),
       });
       fetchExams();
+      alert('Toets gekopieerd naar je eigen omgeving!');
     } catch (e) { } finally { setIsLoading(false); }
   };
 
@@ -214,7 +258,7 @@ export default function TeacherDashboard() {
     }
   };
 
-  const allLabels = Array.from(new Set(exams.flatMap(e => e.labels || []))).sort();
+  const allLabels = Array.from(new Set([...exams, ...sharedExams].flatMap(e => e.labels || []))).sort();
   const toggleFilter = (label: string) => {
     setActiveFilters(prev => prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]);
   };
@@ -236,22 +280,29 @@ export default function TeacherDashboard() {
                   <h2 style={{ margin: 0 }}>Vraagbank</h2>
                   <button className="btn btn-secondary" style={{ padding: '8px' }} onClick={() => setShowBank(false)}><X size={20}/></button>
                 </div>
+                
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid #eee' }}>
+                  <button className={`btn ${bankTab === 'mine' ? '' : 'btn-secondary'}`} style={{ border: 'none', borderRadius: '8px 8px 0 0' }} onClick={() => setBankTab('mine')}>Mijn vragen</button>
+                  <button className={`btn ${bankTab === 'shared' ? '' : 'btn-secondary'}`} style={{ border: 'none', borderRadius: '8px 8px 0 0' }} onClick={() => setBankTab('shared')}>Gedeeld door collega's</button>
+                </div>
+
                 <div style={{ position: 'relative', marginBottom: '20px' }}>
                   <Search size={18} style={{ position: 'absolute', left: '12px', top: '14px', color: 'var(--system-secondary-text)' }} />
                   <input className="input" style={{ paddingLeft: '40px' }} placeholder="Zoek op tekst of label..." value={bankSearch} onChange={e => setBankSearch(e.target.value)} />
                 </div>
                 <div style={{ overflowY: 'auto', flex: 1, padding: '4px' }}>
-                  {bankQuestions.filter(bq => bq.text.toLowerCase().includes(bankSearch.toLowerCase()) || bq.labels?.some(l => l.toLowerCase().includes(bankSearch.toLowerCase()))).map(bq => (
+                  {(bankTab === 'mine' ? bankQuestions : sharedBankQuestions).filter(bq => bq.text.toLowerCase().includes(bankSearch.toLowerCase()) || bq.labels?.some(l => l.toLowerCase().includes(bankSearch.toLowerCase()))).map(bq => (
                     <div key={bq.id} className="card card-hoverable" style={{ padding: '16px', marginBottom: '12px', border: '1px solid var(--system-border)', background: '#fff' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px' }}>
                         <div style={{ flex: 1 }}>
                           <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
                             <span className="badge" style={{ fontSize: '10px' }}>{bq.type}</span>
                             {bq.labels?.map(l => <span key={l} className="badge" style={{ fontSize: '10px', background: 'var(--system-blue)', color: 'white', border: 'none' }}>{l}</span>)}
+                            {bankTab === 'shared' && <span className="badge" style={{ fontSize: '10px', background: '#f5f5f7', color: '#1d1d1f', border: 'none' }}>Door: {(bq as any).teacherName}</span>}
                           </div>
                           <p style={{ margin: 0, fontWeight: '500' }}>{bq.text}</p>
                         </div>
-                        <button className="btn" style={{ height: '40px' }} onClick={() => handleImportFromBank(bq)}><Plus size={16}/> Voeg toe</button>
+                        <button className="btn" style={{ height: '40px' }} onClick={() => handleImportFromBank(bq)}><Plus size={16}/> {bankTab === 'mine' ? 'Voeg toe' : 'Kopieer & Voeg toe'}</button>
                       </div>
                     </div>
                   ))}
@@ -265,19 +316,37 @@ export default function TeacherDashboard() {
               <button className="btn btn-secondary" style={{ borderRadius: '50%', width: '40px', height: '40px', padding: 0 }} onClick={() => setIsEditing(false)}><ArrowLeft size={20}/></button>
               <input style={{ border: 'none', background: 'none', fontSize: '28px', fontWeight: '700', outline: 'none', width: '400px', letterSpacing: '-0.5px' }} value={title} onChange={e => setTitle(e.target.value)} placeholder="Titel..." />
             </div>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button className="btn btn-secondary" onClick={fetchBank} style={{ borderRadius: '12px', padding: '10px 20px' }}>
-                <Database size={18} style={{ marginRight: '8px' }}/> Vraagbank
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', background: 'white', padding: '2px', borderRadius: '10px', border: '1px solid var(--system-border)', marginRight: '8px' }}>
+                <button 
+                  className={`btn ${viewMode === 'single' ? '' : 'btn-secondary'}`} 
+                  onClick={() => setViewMode('single')}
+                  style={{ padding: '8px', border: 'none', borderRadius: '8px', display: 'flex' }}
+                  title="Stapsgewijs bewerken"
+                >
+                  <Layout size={18}/>
+                </button>
+                <button 
+                  className={`btn ${viewMode === 'list' ? '' : 'btn-secondary'}`} 
+                  onClick={() => setViewMode('list')}
+                  style={{ padding: '8px', border: 'none', borderRadius: '8px', display: 'flex' }}
+                  title="Lijstweergave"
+                >
+                  <LayoutList size={18}/>
+                </button>
+              </div>
+              <button className="btn btn-secondary" onClick={fetchBank} style={{ borderRadius: '10px', padding: '10px' }} title="Vraagbank openen">
+                <Database size={20}/>
               </button>
-              <button className="btn btn-secondary" onClick={handlePreview} disabled={isLoading} style={{ borderRadius: '12px', padding: '10px 20px' }}>
-                <Eye size={18} style={{ marginRight: '8px' }}/> Preview
+              <button className="btn btn-secondary" onClick={handlePreview} disabled={isLoading} style={{ borderRadius: '10px', padding: '10px' }} title="Voorvertoning (Preview)">
+                <Eye size={20}/>
               </button>
-              <button className="btn" onClick={() => handleSaveExam()} disabled={isLoading} style={{ borderRadius: '12px', padding: '10px 24px' }}>
-                <Save size={18} style={{ marginRight: '8px' }}/> Opslaan
+              <button className="btn" onClick={() => handleSaveExam()} disabled={isLoading} style={{ borderRadius: '10px', padding: '10px 16px' }} title="Toets opslaan">
+                <Save size={20}/>
               </button>
             </div>
           </header>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '40px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '24px', marginBottom: '40px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#86868b', marginBottom: '8px', textTransform: 'uppercase' }}>Type</label>
               <select className="input" value={type} onChange={e => setType(e.target.value as any)}><option value="taak">Taak</option><option value="toets">Toets</option><option value="examen">Examen</option><option value="formulier">Formulier</option></select>
@@ -288,32 +357,120 @@ export default function TeacherDashboard() {
                 <input type="checkbox" checked={isGraded} onChange={e => setIsGraded(e.target.checked)} /><span>Op punten</span>
               </label>
             </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#86868b', marginBottom: '8px', textTransform: 'uppercase' }}>Delen</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', padding: '8px 16px', borderRadius: '10px', border: '1px solid #d2d2d7', cursor: 'pointer', fontSize: '14px' }}>
+                <input type="checkbox" checked={isShared} onChange={e => setIsShared(e.target.checked)} /><span>Gedeeld</span>
+              </label>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#86868b', marginBottom: '8px', textTransform: 'uppercase' }}>Labels</label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input 
+                  className="input" 
+                  placeholder="Nieuw label..." 
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      const val = (e.target as HTMLInputElement).value.trim();
+                      if (val && !labels.includes(val)) setLabels([...labels, val]);
+                      (e.target as HTMLInputElement).value = '';
+                    }
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '8px' }}>
+                {labels.map(l => (
+                  <span key={l} className="badge" style={{ background: '#f5f5f7', padding: '4px 8px', borderRadius: '6px', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {l} <X size={10} style={{ cursor: 'pointer' }} onClick={() => setLabels(labels.filter(x => x !== l))} />
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
+          
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {viewMode === 'single' ? (
               <>
-                <nav style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '32px' }}>
-                  {questions.map((_, i) => <button key={i} onClick={() => setCurrentQuestionIndex(i)} className={`nav-dot ${currentQuestionIndex === i ? 'active' : ''}`} />)}
-                  <button className="nav-dot" onClick={handleAddQuestion} style={{ color: 'var(--system-blue)' }}><Plus size={14}/></button>
+                <nav style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', marginBottom: '40px', flexWrap: 'wrap' }}>
+                  {questions.map((_, i) => (
+                    <button 
+                      key={i} 
+                      onClick={() => setCurrentQuestionIndex(i)} 
+                      style={{ width: '32px', height: '32px', borderRadius: '50%', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', background: currentQuestionIndex === i ? 'var(--system-blue)' : 'white', color: currentQuestionIndex === i ? 'white' : 'var(--system-text)', border: '1px solid var(--system-border)', cursor: 'pointer' }}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                  <button 
+                    onClick={handleAddQuestion} 
+                    disabled={hasSubmissions}
+                    style={{ 
+                      background: 'white', 
+                      border: '1px dashed', 
+                      borderColor: hasSubmissions ? 'var(--system-border)' : 'var(--system-blue)', 
+                      color: hasSubmissions ? '#86868b' : 'var(--system-blue)', 
+                      padding: '6px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: '600', 
+                      cursor: hasSubmissions ? 'not-allowed' : 'pointer', 
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                      opacity: hasSubmissions ? 0.6 : 1
+                    }}
+                    title={hasSubmissions ? "Kan geen vragen toevoegen: er zijn al inzendingen" : "Voeg een nieuwe vraag toe"}
+                  >
+                    <Plus size={16}/> Vraag toevoegen
+                  </button>
                 </nav>
                 {questions[currentQuestionIndex] && <QuestionEditor q={questions[currentQuestionIndex]} index={currentQuestionIndex} {...editorProps} />}
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '32px' }}>
-                  <button className="btn btn-secondary" disabled={currentQuestionIndex === 0} onClick={() => setCurrentQuestionIndex(currentQuestionIndex - 1)}>Vorige</button>
-                  <button className="btn btn-secondary" disabled={currentQuestionIndex === questions.length - 1} onClick={() => setCurrentQuestionIndex(currentQuestionIndex + 1)}>Volgende</button>
+                  <button className="btn btn-secondary" style={{ padding: '12px 32px' }} disabled={currentQuestionIndex === 0} onClick={() => setCurrentQuestionIndex(currentQuestionIndex - 1)}>Vorige</button>
+                  <button className="btn btn-secondary" style={{ padding: '12px 32px' }} disabled={currentQuestionIndex === questions.length - 1} onClick={() => setCurrentQuestionIndex(currentQuestionIndex + 1)}>Volgende</button>
                 </div>
               </>
             ) : (
-              questions.map((q, i) => <QuestionEditor key={q.id} q={q} index={i} {...editorProps} />)
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                {questions.map((q, i) => <QuestionEditor key={q.id} q={q} index={i} {...editorProps} />)}
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={handleAddQuestion} 
+                  disabled={hasSubmissions}
+                  style={{ 
+                    padding: '24px', 
+                    borderStyle: 'dashed', 
+                    background: hasSubmissions ? '#f5f5f7' : 'rgba(0,102,204,0.02)', 
+                    fontSize: '17px', 
+                    fontWeight: '600',
+                    cursor: hasSubmissions ? 'not-allowed' : 'pointer',
+                    color: hasSubmissions ? '#86868b' : 'inherit',
+                    opacity: hasSubmissions ? 0.6 : 1
+                  }}
+                  title={hasSubmissions ? "Kan geen vragen toevoegen: er zijn al inzendingen" : "Nieuwe vraag toevoegen"}
+                >
+                  <Plus size={20}/> {hasSubmissions ? 'Bewerken vergrendeld (inzendingen aanwezig)' : 'Nieuwe vraag toevoegen'}
+                </button>
+              </div>
             )}
-            {!hasSubmissions && viewMode === 'list' && <button className="btn btn-secondary" onClick={handleAddQuestion}><Plus size={20}/> Vraag toevoegen</button>}
           </div>
         </div>
       ) : (
         <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '64px 40px' }}>
           <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '48px' }}>
-            <div><h1 style={{ fontSize: '48px', fontWeight: '700', margin: 0, letterSpacing: '-1.5px' }}>Mijn opdrachten</h1><p className="text-muted" style={{ fontSize: '19px', marginTop: '4px' }}>Beheer je digitale sessies.</p></div>
+            <div><h1 style={{ fontSize: '48px', fontWeight: '700', margin: 0, letterSpacing: '-1.5px' }}>Toetsomgeving</h1><p className="text-muted" style={{ fontSize: '19px', marginTop: '4px' }}>Beheer en deel je digitale sessies.</p></div>
             <button className="btn" style={{ borderRadius: '24px', padding: '12px 24px', fontSize: '16px', fontWeight: '600' }} onClick={handleStartCreate}><Plus size={18} /> Nieuwe Toets</button>
           </header>
+
+          <div style={{ display: 'flex', gap: '24px', marginBottom: '40px', borderBottom: '1px solid var(--system-border)' }}>
+            <button 
+              style={{ padding: '12px 4px', fontSize: '16px', fontWeight: '600', border: 'none', background: 'none', borderBottom: activeTab === 'mine' ? '2px solid var(--system-blue)' : '2px solid transparent', color: activeTab === 'mine' ? 'var(--system-blue)' : '#86868b', cursor: 'pointer' }}
+              onClick={() => setActiveTab('mine')}
+            >
+              Mijn opdrachten
+            </button>
+            <button 
+              style={{ padding: '12px 4px', fontSize: '16px', fontWeight: '600', border: 'none', background: 'none', borderBottom: activeTab === 'shared' ? '2px solid var(--system-blue)' : '2px solid transparent', color: activeTab === 'shared' ? 'var(--system-blue)' : '#86868b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+              onClick={() => setActiveTab('shared')}
+            >
+              <Users size={18}/> Gedeeld door collega's
+            </button>
+          </div>
 
           {allLabels.length > 0 && (
             <div style={{ marginBottom: '32px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -322,80 +479,46 @@ export default function TeacherDashboard() {
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
             {filteredExams.map(exam => {
               const total = exam.questions.reduce((s, q) => s + (q.type === 'image-analysis' ? (q.subQuestions?.reduce((ss, sq) => ss + sq.points, 0) || 0) : q.points), 0);
+              const isOwn = activeTab === 'mine';
               return (
                 <div key={exam.id} className="card card-hoverable" style={{ padding: '20px', display: 'flex', flexDirection: 'column', borderRadius: '18px', border: '1px solid rgba(0,0,0,0.05)', background: 'white', position: 'relative' }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <span style={{ fontSize: '10px', fontWeight: '700', color: '#0071e3', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{exam.type}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '10px', fontWeight: '700', color: '#0071e3', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{exam.type}</span>
+                          {exam.isShared && isOwn && <Share2 size={10} color="#0071e3" />}
+                        </div>
                         <h3 style={{ fontSize: '18px', margin: 0, fontWeight: '600', lineHeight: '1.2' }}>{exam.title}</h3>
-                        <p style={{ fontSize: '13px', color: '#86868b', margin: '4px 0 0' }}>{exam.questions.length} vragen • {exam.isGraded ? `${total} pt` : 'Geen ptn'} • {exam.submissionCount} inzendingen</p>
+                        {!isOwn && <p style={{ fontSize: '11px', color: 'var(--system-blue)', fontWeight: '600', margin: '2px 0' }}>Door: {(exam as any).teacherName}</p>}
+                        <p style={{ fontSize: '13px', color: '#86868b', margin: '4px 0 0' }}>{exam.questions.length} vragen • {exam.isGraded ? `${total} pt` : 'Geen ptn'} {isOwn && `• ${exam.submissionCount} inzendingen`}</p>
                       </div>
                       <div style={{ position: 'relative' }}>
                         <button className="btn btn-secondary" style={{ padding: '4px', borderRadius: '50%', width: '28px', height: '28px' }} onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === exam.id ? null : exam.id); }}><MoreVertical size={16}/></button>
                         {openMenuId === exam.id && (
                           <div className="animate-up" style={{ position: 'absolute', top: '32px', right: 0, width: '220px', background: 'white', borderRadius: '14px', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', border: '1px solid rgba(0,0,0,0.05)', zIndex: 50, padding: '6px' }}>
-                            <button 
-                              style={{ ...dropdownItemStyle, color: 'var(--system-blue)', fontWeight: '700' }} 
-                              onClick={() => handleStartLiveSessie(exam)}
-                              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'}
-                              onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                            >
-                              <Play size={14}/> Start Live Sessie
-                            </button>
-                            <div style={{ height: '1px', background: '#f5f5f7', margin: '4px 0' }} />
-                            <button 
-                              style={dropdownItemStyle} 
-                              onClick={() => navigate(`/teacher/results/${exam.id}`)}
-                              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'}
-                              onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                            >
-                              <BarChart3 size={14}/> Inzendingen ({exam.submissionCount})
-                            </button>
-                            <button 
-                              style={dropdownItemStyle} 
-                              onClick={() => handleQuickPreview(exam)}
-                              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'}
-                              onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                            >
-                              <Eye size={14}/> Preview
-                            </button>
-                            <button 
-                              style={dropdownItemStyle} 
-                              onClick={() => handleDuplicate(exam)}
-                              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'}
-                              onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                            >
-                              <Copy size={14}/> Kopieer
-                            </button>
-                            <button 
-                              style={dropdownItemStyle} 
-                              onClick={() => window.open(`/teacher/print/${exam.exam_key}`)}
-                              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'}
-                              onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                            >
-                              <Printer size={14}/> Afdrukken
-                            </button>
-                            <div style={{ height: '1px', background: '#f5f5f7', margin: '4px 0' }} />
-                            <button 
-                              style={dropdownItemStyle} 
-                              onClick={() => handleStartEdit(exam)}
-                              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'}
-                              onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                            >
-                              <Edit3 size={14}/> Bewerken
-                            </button>
-                            <button 
-                              style={{ ...dropdownItemStyle, color: '#ef4444' }} 
-                              onClick={() => handleDelete(exam.id)}
-                              onMouseEnter={(e) => e.currentTarget.style.background = '#fff1f2'}
-                              onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                            >
-                              <Trash2 size={14}/> Verwijderen
-                            </button>
+                            {isOwn ? (
+                              <>
+                                <button style={{ ...dropdownItemStyle, color: 'var(--system-blue)', fontWeight: '700' }} onClick={() => handleStartLiveSessie(exam)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><Play size={14}/> Start Live Sessie</button>
+                                <div style={{ height: '1px', background: '#f5f5f7', margin: '4px 0' }} />
+                                <button style={dropdownItemStyle} onClick={() => navigate(`/teacher/results/${exam.id}`)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><BarChart3 size={14}/> Inzendingen ({exam.submissionCount})</button>
+                                <button style={dropdownItemStyle} onClick={() => handleQuickPreview(exam)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><Eye size={14}/> Preview</button>
+                                <button style={dropdownItemStyle} onClick={() => handleDuplicate(exam)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><Copy size={14}/> Kopieer</button>
+                                <button style={dropdownItemStyle} onClick={() => handleToggleShare(exam)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><Share2 size={14}/> {exam.isShared ? 'Niet meer delen' : 'Delen met collega\'s'}</button>
+                                <button style={dropdownItemStyle} onClick={() => window.open(`/teacher/print/${exam.exam_key}`)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><Printer size={14}/> Afdrukken</button>
+                                <div style={{ height: '1px', background: '#f5f5f7', margin: '4px 0' }} />
+                                <button style={dropdownItemStyle} onClick={() => handleStartEdit(exam)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><Edit3 size={14}/> Bewerken</button>
+                                <button style={{ ...dropdownItemStyle, color: '#ef4444' }} onClick={() => handleDelete(exam.id)} onMouseEnter={(e) => e.currentTarget.style.background = '#fff1f2'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><Trash2 size={14}/> Verwijderen</button>
+                              </>
+                            ) : (
+                              <>
+                                <button style={dropdownItemStyle} onClick={() => handleQuickPreview(exam)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><Eye size={14}/> Bekijken (Preview)</button>
+                                <button style={{ ...dropdownItemStyle, color: 'var(--system-blue)', fontWeight: '700' }} onClick={() => handleDuplicate(exam)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><Copy size={14}/> Kopieer naar mijn opdrachten</button>
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
