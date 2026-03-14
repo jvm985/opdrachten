@@ -6,7 +6,7 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
-echo "🔧 Configureren van Host Nginx voor Docker Proxy..."
+echo "🔧 Configureren van Host Nginx voor Docker Proxy (Poort 8090)..."
 
 # 1. Docent Portaal Config
 cat <<EOF > /etc/nginx/sites-available/docent.irishof.cloud.conf
@@ -48,7 +48,7 @@ server {
 }
 EOF
 
-# 3. Links aanmaken naar sites-enabled (als ze nog niet bestaan)
+# 3. Links aanmaken naar sites-enabled
 ln -sf /etc/nginx/sites-available/docent.irishof.cloud.conf /etc/nginx/sites-enabled/
 ln -sf /etc/nginx/sites-available/student.irishof.cloud.conf /etc/nginx/sites-enabled/
 
@@ -59,7 +59,7 @@ nginx -t
 if [ $? -eq 0 ]; then
     echo "✅ Nginx configuratie is OK. Herstarten..."
     systemctl reload nginx
-    echo "🚀 Host Nginx is nu gekoppeld aan Docker poort 8080!"
+    echo "🚀 Host Nginx is nu correct gekoppeld aan Docker poort 8090 met 50MB limiet!"
 else
     echo "❌ Fout in Nginx configuratie. Controleer de output hierboven."
     exit 1
