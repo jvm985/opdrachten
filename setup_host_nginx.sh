@@ -13,6 +13,7 @@ cat <<EOF > /etc/nginx/sites-available/docent.irishof.cloud.conf
 server {
     listen 80;
     server_name docent.irishof.cloud;
+    client_max_body_size 50M;
 
     location / {
         proxy_pass http://127.0.0.1:8090;
@@ -32,6 +33,7 @@ cat <<EOF > /etc/nginx/sites-available/student.irishof.cloud.conf
 server {
     listen 80;
     server_name student.irishof.cloud;
+    client_max_body_size 50M;
 
     location / {
         proxy_pass http://127.0.0.1:8090;
