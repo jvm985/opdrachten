@@ -65,16 +65,6 @@ export default function TeacherResults() {
         return parseFloat(((correctCount / q.pairs.length) * q.points).toFixed(2));
       }
 
-      case 'categorization': {
-        if (!q.items || !answer?.placed) return 0;
-        let correctCount = 0;
-        q.items.forEach(item => {
-          const studentCat = Object.keys(answer.placed).find(cat => answer.placed[cat].some((si: any) => si.id === item.id));
-          if (studentCat === item.category) correctCount++;
-        });
-        return parseFloat(((correctCount / q.items.length) * q.points).toFixed(2));
-      }
-
       case 'timeline': {
         if (!q.timelineData || !answer?.placed) return 0;
         let correctCount = 0;
@@ -84,7 +74,7 @@ export default function TeacherResults() {
           bucket.forEach(event => {
             totalEvents++;
             const studentBucketIdx = Object.keys(answer.placed).find(bIdx => 
-              answer.placed[bIdx].some((ev: any) => ev.id === event.id)
+              answer.placed[bIdx]?.some((ev: any) => ev.id === event.id)
             );
             if (studentBucketIdx === correctIdx.toString()) correctCount++;
           });
@@ -219,15 +209,12 @@ export default function TeacherResults() {
       await Promise.all(updates);
       setHasUnsavedChanges(false);
       alert('Opgeslagen');
-      // We doen GEEN fetchSubmissions() meer hier om verspringen te voorkomen.
-      // De lokale state 'allManualScores' is al up-to-date.
     } catch (e) { alert('Fout'); } finally { setIsSaving(false); }
   };
 
   const handleDeleteSubmission = async (id: string) => {
     if (!confirm('Inzending verwijderen?')) return;
     await fetch(`/api/submissions/${id}`, { method: 'DELETE' });
-    // Bij verwijderen is een refresh wel gewenst
     fetchSubmissions();
   };
 
@@ -350,7 +337,7 @@ export default function TeacherResults() {
                 </div>
               ) : q.type === 'map' ? (
                 <div style={{ position: 'relative', width: '200px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #cce3ff' }}>
-                  <img src={q.image} crossOrigin="anonymous" style={{ width: '100%', opacity: 0.5 }} />
+                  <img src={q.image} style={{ width: '100%', opacity: 0.5 }} />
                   {q.locations?.map(loc => (
                     <div key={loc.id} style={{ position: 'absolute', left: `${loc.x}%`, top: `${loc.y}%`, transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <div style={{ background: '#0066cc', color: 'white', fontSize: '6px', padding: '1px 3px', borderRadius: '2px' }}>{loc.label}</div>
@@ -501,26 +488,6 @@ export default function TeacherResults() {
                 );
               })}
             </div>
-          ) : q.type === 'categorization' ? (
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${(q.categories || []).length}, 1fr)`, gap: '16px' }}>
-              {(q.categories || []).map(cat => (
-                <div key={cat} style={{ background: 'white', border: '1px solid var(--system-border)', borderRadius: '12px', minHeight: '100px' }}>
-                  <div style={{ padding: '8px', textAlign: 'center', fontWeight: '700', borderBottom: '1px solid #f5f5f7', fontSize: '12px' }}>{cat}</div>
-                  <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {(answer?.placed?.[cat] || []).map((si: any) => {
-                      const originalItem = q.items?.find(it => it.id === si.id);
-                      const isCorrect = originalItem?.category === cat;
-                      return (
-                        <div key={si.id} style={{ padding: '6px 10px', borderRadius: '6px', background: isCorrect ? '#f0fdf4' : '#fff1f2', border: '1px solid', borderColor: isCorrect ? '#22c55e' : '#ef4444', fontSize: '12px', fontWeight: '500', color: isCorrect ? '#166534' : '#991b1b', textAlign: 'center' }}>
-                          {si.text}
-                          {!isCorrect && <div style={{ fontSize: '9px', opacity: 0.7 }}>Hoort in: {originalItem?.category}</div>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
           ) : q.type === 'timeline' ? (
             <div style={{ display: 'grid', gridTemplateColumns: `repeat(${q.totalBuckets || 5}, 1fr)`, gap: '10px' }}>
               {Array.from({ length: q.totalBuckets || 5 }).map((_, idx) => {
@@ -533,13 +500,12 @@ export default function TeacherResults() {
                     <div style={{ padding: '6px', textAlign: 'center', fontSize: '9px', fontWeight: '700', borderBottom: '1px solid #f5f5f7', background: '#fafafa', borderRadius: '12px 12px 0 0' }}>{displayStart}-{bEnd}</div>
                     <div style={{ padding: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       {(answer?.placed?.[idx] || []).map((ev: any) => {
-                        const originalEvent = q.timelineEvents?.find(e => e.id === ev.id);
-                        const correctBucketIdx = Math.min(Math.floor(((originalEvent?.year || 0) - (q.startYear || 0)) / bucketSize), (q.totalBuckets || 5) - 1);
-                        const isCorrect = correctBucketIdx === idx;
+                        const originalBucketIdx = q.timelineData?.findIndex(bucket => bucket.some(e => e.id === ev.id));
+                        const isCorrect = originalBucketIdx === idx;
                         return (
                           <div key={ev.id} style={{ padding: '4px 6px', borderRadius: '4px', background: isCorrect ? '#f0fdf4' : '#fff1f2', border: '1px solid', borderColor: isCorrect ? '#22c55e' : '#ef4444', fontSize: '11px', textAlign: 'center', color: isCorrect ? '#166534' : '#991b1b' }}>
                             {ev.text}
-                            {!isCorrect && <div style={{ fontSize: '8px', opacity: 0.7 }}>Jaar: {originalEvent?.year}</div>}
+                            {!isCorrect && <div style={{ fontSize: '8px', opacity: 0.7 }}>Hoort niet hier</div>}
                           </div>
                         );
                       })}
@@ -569,13 +535,11 @@ export default function TeacherResults() {
                         
                         let isCorrect = false;
                         if (q.tableConfig?.ignoreRowOrder) {
-                          // Kijk of deze student-waarde ergens in de correcte waarden van DEZE kolom voorkomt
                           const correctValuesInCol = (q.tableConfig?.interactiveCells || [])
                             .filter(ic => ic.c === cIdx)
                             .map(ic => (q.tableData?.[ic.r][ic.c] || '').toLowerCase().trim());
                           isCorrect = studentText !== '' && correctValuesInCol.includes(studentText.toLowerCase().trim());
                         } else {
-                          // Exacte match op deze cel
                           isCorrect = studentText.toLowerCase().trim() === cell.toLowerCase().trim();
                         }
 
@@ -602,118 +566,3 @@ export default function TeacherResults() {
       </div>
     );
   };
-
-  if (loading) return <div style={{ padding: '100px', textAlign: 'center' }}>Inzendingen laden...</div>;
-
-  return (
-    <div style={{ minHeight: '100vh', background: '#f5f5f7', paddingTop: '72px' }}>
-      <TopNav user={user} />
-      
-      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '48px 20px' }}>
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '48px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
-              <button className="btn btn-secondary" style={{ borderRadius: '50%', width: '40px', height: '40px', padding: 0 }} onClick={handleBack}><ArrowLeft size={20}/></button>
-              <h1 style={{ fontSize: '32px', fontWeight: '700', margin: 0 }}>Inzendingen</h1>
-            </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button className={`btn ${viewMode === 'individual' ? '' : 'btn-secondary'}`} onClick={() => setViewMode('individual')}><User size={14} style={{ marginRight: '6px' }}/> Per student</button>
-              <button className={`btn ${viewMode === 'question' ? '' : 'btn-secondary'}`} onClick={() => setViewMode('question')}><List size={14} style={{ marginRight: '6px' }}/> Per vraag</button>
-              <button className={`btn ${viewMode === 'table' ? '' : 'btn-secondary'}`} onClick={() => setViewMode('table')}><TableIcon size={14} style={{ marginRight: '6px' }}/> Tabel</button>
-            </div>
-          </div>
-          <button className="btn" onClick={saveAllScores} disabled={isSaving || !hasUnsavedChanges}>
-            <Save size={18} style={{ marginRight: '8px' }}/> {isSaving ? 'Bezig met opslaan...' : 'Alles opslaan'}
-          </button>
-        </header>
-
-        {submissions.length === 0 ? (
-          <div className="card" style={{ padding: '80px', textAlign: 'center' }}><p className="text-muted">Nog geen inzendingen.</p></div>
-        ) : viewMode === 'individual' ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', padding: '16px 24px', borderRadius: '20px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
-              <button className="btn btn-secondary" disabled={selectedStudentIdx === 0} onClick={() => setSelectedStudentIdx(selectedStudentIdx - 1)}><ChevronLeft size={20}/></button>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '18px', fontWeight: '700' }}>{submissions[selectedStudentIdx]?.student_name}</div>
-                <div style={{ fontSize: '13px', color: '#86868b' }}>Inzending {selectedStudentIdx + 1} van {submissions.length}</div>
-              </div>
-              <button className="btn btn-secondary" disabled={selectedStudentIdx === submissions.length - 1} onClick={() => setSelectedStudentIdx(selectedStudentIdx + 1)}><ChevronRight size={20}/></button>
-            </div>
-            {submissions[selectedStudentIdx] && (
-              <div className="animate-up">
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '32px' }}>
-                  <div className="card" style={{ padding: '24px 32px', flex: 1, marginRight: '20px' }}>
-                    <p style={{ color: '#86868b', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Totaalscore</p>
-                    <h2 style={{ margin: 0, fontSize: '32px' }}>{calculateTotalScore(submissions[selectedStudentIdx].id)} <span style={{ fontSize: '18px', color: '#86868b' }}>/ {maxPoints}</span></h2>
-                  </div>
-                  <div className="card" style={{ padding: '24px 32px', flex: 1 }}>
-                    <p style={{ color: '#86868b', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Status</p>
-                    <h2 style={{ margin: 0, fontSize: '24px', color: getUnevaluatedCount(submissions[selectedStudentIdx].id) > 0 ? '#e11d48' : '#059669' }}>
-                      {getUnevaluatedCount(submissions[selectedStudentIdx].id) === 0 ? 'Beoordeeld' : `${getUnevaluatedCount(submissions[selectedStudentIdx].id)} vragen te gaan`}
-                    </h2>
-                  </div>
-                </div>
-                {exam?.questions.map(q => <QuestionResultRenderer key={q.id} q={q} submission={submissions[selectedStudentIdx]} />)}
-              </div>
-            )}
-          </div>
-        ) : viewMode === 'question' ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', padding: '16px 24px', borderRadius: '20px' }}>
-              <button className="btn btn-secondary" disabled={selectedQuestionIdx === 0} onClick={() => setSelectedQuestionIdx(selectedQuestionIdx - 1)}><ChevronLeft size={20}/></button>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '18px', fontWeight: '700' }}>Vraag {selectedQuestionIdx + 1} van {exam?.questions.length}</div>
-                <div style={{ fontSize: '13px', color: '#86868b' }}>{exam?.questions[selectedQuestionIdx]?.type.toUpperCase()}</div>
-              </div>
-              <button className="btn btn-secondary" disabled={selectedQuestionIdx === (exam?.questions.length || 0) - 1} onClick={() => setSelectedQuestionIdx(selectedQuestionIdx + 1)}><ChevronRight size={20}/></button>
-            </div>
-            {exam?.questions[selectedQuestionIdx] && (
-              <div className="animate-up">
-                <h2 style={{ padding: '0 12px 32px', fontSize: '24px', fontWeight: '700' }}>{exam.questions[selectedQuestionIdx].text}</h2>
-                {submissions.map(sub => <QuestionResultRenderer key={sub.id} q={exam.questions[selectedQuestionIdx]} submission={sub} />)}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="card animate-up" style={{ padding: 0, overflow: 'hidden', borderRadius: '24px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: '#f5f5f7', borderBottom: '1px solid var(--system-border)' }}>
-                  <th style={{ padding: '20px 32px', textAlign: 'left', fontSize: '13px' }}>STUDENT</th>
-                  <th style={{ padding: '20px 32px', textAlign: 'left', fontSize: '13px' }}>KLAS</th>
-                  {exam?.questions.map((q, i) => <th key={q.id} style={{ padding: '20px', textAlign: 'center', fontSize: '11px' }}>V{i+1}</th>)}
-                  <th style={{ padding: '20px 32px', textAlign: 'right', fontSize: '13px' }}>TOTAAL</th>
-                  <th style={{ padding: '20px 32px', width: '50px' }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {submissions.map(sub => (
-                  <tr key={sub.id} style={{ borderBottom: '1px solid #f5f5f7' }}>
-                    <td style={{ padding: '20px 32px', fontWeight: '600' }}>{sub.student_name}</td>
-                    <td style={{ padding: '20px 32px', color: '#86868b' }}>{sub.student_klas}</td>
-                    {exam?.questions.map(q => {
-                      const score = allManualScores[sub.id]?.[q.id];
-                      const isComplete = q.type === 'image-analysis' ? (score && typeof score === 'object' && Object.keys(score).length === q.subQuestions?.length) : (score !== null && score !== undefined);
-                      const displayScore = typeof score === 'object' && score !== null ? Object.values(score).reduce((a:any, b:any) => a+b, 0) : score;
-                      return (
-                        <td key={q.id} style={{ padding: '20px', textAlign: 'center' }}>
-                          <span style={{ padding: '4px 8px', borderRadius: '6px', background: isComplete ? '#f0fdf4' : '#fff1f2', color: isComplete ? '#166534' : '#991b1b', fontSize: '12px', fontWeight: '700' }}>
-                            {isComplete ? displayScore : '-'}
-                          </span>
-                        </td>
-                      );
-                    })}
-                    <td style={{ padding: '20px 32px', textAlign: 'right', fontWeight: '700', fontSize: '18px' }}>{calculateTotalScore(sub.id)}</td>
-                    <td style={{ padding: '20px 32px' }}>
-                      <button className="btn btn-danger" style={{ padding: '6px' }} onClick={() => handleDeleteSubmission(sub.id)}><XCircle size={14}/></button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </main>
-    </div>
-  );
-}

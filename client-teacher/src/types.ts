@@ -25,6 +25,7 @@ export interface Question {
   totalBuckets?: number;
   explainIfFalse?: boolean;
   labels?: string[];
+  isShared?: boolean;
 }
 
 export interface Exam {
@@ -39,6 +40,8 @@ export interface Exam {
   detectTabSwitch: boolean;
   submissionCount: number;
   hasSubmissions: boolean;
+  isShared: boolean;
+  isDeleted: boolean;
   created_at: string;
 }
 
