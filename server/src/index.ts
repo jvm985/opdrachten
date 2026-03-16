@@ -34,11 +34,25 @@ const generateEmail = (name: string) => {
 // --- API ---
 
 app.post('/api/auth/google', async (req, res) => {
-  const { token, role, isAccessToken } = req.body;
+  const { token, role, isAccessToken, code } = req.body;
   try {
     let email: string | undefined;
+    let refresh_token: string | undefined;
     
-    if (isAccessToken) {
+    if (code) {
+      // Exchange code for tokens (Classroom sync)
+      const response = await client.getToken({
+        code,
+        redirect_uri: 'postmessage'
+      });
+      const tokens = response.tokens;
+      const ticket = await client.verifyIdToken({
+        idToken: tokens.id_token!,
+        audience: '339058057860-i6ne31mqs27mqm2ulac7al9vi26pmgo1.apps.googleusercontent.com',
+      });
+      email = ticket.getPayload()?.email;
+      refresh_token = tokens.refresh_token || undefined;
+    } else if (isAccessToken) {
       const infoRes = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${token}`);
       const info: any = await infoRes.json();
       email = info.email;
@@ -52,8 +66,6 @@ app.post('/api/auth/google', async (req, res) => {
 
     if (!email) return res.status(401).json({ error: 'Fout bij verificatie' });
 
-    console.log(`🔑 Login poging voor: ${email} (Rol: ${role})`);
-
     if (!email.endsWith('@atheneumkapellen.be')) {
       return res.status(403).json({ error: 'Alleen school-accounts toegestaan.' });
     }
@@ -61,9 +73,15 @@ app.post('/api/auth/google', async (req, res) => {
     if (role === 'teacher') {
       db.get('SELECT * FROM users WHERE email = ? AND role = "teacher"', [email], (err, user: any) => {
         if (err || !user) return res.status(404).json({ error: 'Geen docent-account gevonden.' });
-        res.json({ id: user.id, email: user.email, name: user.name, role: 'teacher' });
+        
+        if (refresh_token) {
+          db.run('UPDATE users SET google_refresh_token = ? WHERE id = ?', [refresh_token, user.id]);
+        }
+        
+        res.json({ id: user.id, email: user.email, name: user.name, role: 'teacher', hasClassroom: !!(user.google_refresh_token || refresh_token) });
       });
     } else {
+      // ... student logic remains same ...
       db.get('SELECT * FROM students WHERE email = ?', [email], (err, student: any) => {
         if (student) {
           res.json({ id: student.id, name: student.name, klas: student.klas, photo_url: student.photo_url, role: 'student' });

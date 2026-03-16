@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, User, List, Table as TableIcon, CheckCircle, XCircle, MapPin, Save } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, User, List, Table as TableIcon, CheckCircle, XCircle, MapPin, Save, Copy, FileDown, GraduationCap } from 'lucide-react';
 import { TopNav } from '../components/TopNav';
 import type { Question, Exam, Submission } from '../types';
 
@@ -22,13 +22,15 @@ export default function TeacherResults() {
   useEffect(() => {
     if (user.role !== 'teacher') { navigate('/login'); return; }
     fetchData();
+  }, [examId]); // Alleen herladen als het examen-ID verandert
 
+  useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasUnsavedChanges) { e.preventDefault(); e.returnValue = ''; }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [hasUnsavedChanges, examId]);
+  }, [hasUnsavedChanges]);
 
   const calculateAutoScore = (q: Question, answer: any): number | null => {
     if (answer === undefined || answer === null) return 0;
@@ -192,6 +194,29 @@ export default function TeacherResults() {
     navigate('/teacher');
   };
 
+  const copyForClassroom = () => {
+    const text = submissions.map(sub => {
+      const score = calculateTotalScore(sub.id);
+      return `${sub.student_name}\t${score}`;
+    }).join('\n');
+    navigator.clipboard.writeText(text);
+    alert('Namen en scores gekopieerd naar klembord (Tab-gescheiden, ideaal voor Excel/Classroom)');
+  };
+
+  const exportCSV = () => {
+    const header = 'Naam,Klas,Score,Max Punten\n';
+    const rows = submissions.map(sub => {
+      const score = calculateTotalScore(sub.id);
+      return `${sub.student_name},${sub.student_klas},${score},${maxPoints}`;
+    }).join('\n');
+    const blob = new Blob([header + rows], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Resultaten_${exam?.title.replace(/\s+/g, '_')}.csv`;
+    a.click();
+  };
+
   const calculateTotalScore = (subId: string) => {
     const scores = allManualScores[subId] || {};
     return Object.entries(scores).reduce((total, [_, score]) => {
@@ -218,6 +243,155 @@ export default function TeacherResults() {
 
   const maxPoints = exam?.questions.reduce((s: number, q: Question) => s + (q.type === 'image-analysis' ? (q.subQuestions?.reduce((ss, sq) => ss + sq.points, 0) || 0) : q.points), 0);
 
+  const handleGroupScoreChange = (subIds: string[], qId: string, value: string) => {
+    setHasUnsavedChanges(true);
+    const numValue = value === '' ? null : parseFloat(value);
+    setAllManualScores(prev => {
+      const newScores = { ...prev };
+      subIds.forEach(subId => {
+        newScores[subId] = { ...(newScores[subId] || {}), [qId]: numValue };
+      });
+      return newScores;
+    });
+  };
+
+  const StudentAnswerView = ({ q, answer }: { q: Question, answer: any }) => {
+    if (q.type === 'multiple-choice') {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {q.options?.map((opt, idx) => {
+            const isSelected = answer === opt; const isCorrect = q.correctAnswer === opt;
+            return <div key={idx} style={{ padding: '16px 20px', borderRadius: '12px', border: '1px solid', background: isSelected ? (isCorrect ? '#f0fdf4' : '#fff1f2') : 'white', borderColor: isSelected ? (isCorrect ? '#22c55e' : '#ef4444') : '#d2d2d7', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span style={{ fontWeight: isSelected ? '700' : '500' }}>{opt}</span>{isSelected && (isCorrect ? <CheckCircle size={18} color="#22c55e" /> : <XCircle size={18} color="#ef4444" />)}</div>;
+          })}
+        </div>
+      );
+    }
+    if (q.type === 'true-false') {
+      const val = answer?.value || answer;
+      return <div style={{ fontSize: '18px', fontWeight: '700', color: val === q.correctAnswer ? '#22c55e' : '#ef4444' }}>{val || 'Niet ingevuld'}</div>;
+    }
+    if (q.type === 'table-fill') {
+      return (
+        <div style={{ overflowX: 'auto', background: 'white', borderRadius: '12px', border: '1px solid var(--system-border)', padding: '12px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <tbody>{(q.tableData || []).map((row, rIdx) => (
+              <tr key={rIdx}>{row.map((cell, cIdx) => {
+                const isInteractive = q.tableConfig?.interactiveCells?.some(ic => ic.r === rIdx && ic.c === cIdx);
+                if (!isInteractive) return <td key={cIdx} style={{ border: '1px solid #eee', padding: '10px', background: rIdx === 0 ? '#f5f5f7' : '#fafafa', fontSize: '13px', fontWeight: rIdx === 0 ? 'bold' : 'normal', textAlign: 'center' }}>{cell}</td>;
+                const cellId = `${rIdx}-${cIdx}`; const studentAns = answer?.[cellId]; const studentText = (typeof studentAns === 'object' ? studentAns?.text : studentAns) || '';
+                let isCorrect = false;
+                if (q.tableConfig?.ignoreRowOrder) {
+                  const correctValuesInCol = (q.tableConfig?.interactiveCells || []).filter(ic => ic.c === cIdx).map(ic => (q.tableData?.[ic.r][ic.c] || '').toLowerCase().trim());
+                  isCorrect = studentText !== '' && correctValuesInCol.includes(studentText.toLowerCase().trim());
+                } else { isCorrect = studentText.toLowerCase().trim() === cell.toLowerCase().trim(); }
+                return <td key={cIdx} style={{ border: '1px solid #eee', padding: '8px', textAlign: 'center' }}><div style={{ padding: '6px', borderRadius: '6px', background: isCorrect ? '#f0fdf4' : '#fff1f2', border: '1px solid', borderColor: isCorrect ? '#22c55e' : '#ef4444', color: isCorrect ? '#166534' : '#991b1b', fontSize: '13px', fontWeight: '600' }}>{studentText || '-'}{!isCorrect && studentText && <div style={{ fontSize: '10px', marginTop: '4px', borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: '4px' }}>{q.tableConfig?.ignoreRowOrder ? 'Foute kolom' : `Correct: ${cell}`}</div>}</div></td>;
+              })}</tr>
+            ))}</tbody>
+          </table>
+        </div>
+      );
+    }
+    if (q.type === 'map') {
+      return (
+        <div style={{ position: 'relative', borderRadius: '16px', overflow: 'hidden', border: '1px solid #ddd', background: 'white' }}>
+          <img src={q.image} style={{ width: '100%', display: 'block', opacity: 0.6 }} />
+          {q.locations?.map(loc => {
+            const studentLoc = answer?.[loc.id];
+            return studentLoc && <div key={`student-${loc.id}`} style={{ position: 'absolute', left: `${studentLoc.x}%`, top: `${studentLoc.y}%`, transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}><div style={{ background: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: '700', marginBottom: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>{loc.label}</div><MapPin size={20} color="var(--system-blue)" fill="var(--system-blue)" /></div>;
+          })}
+        </div>
+      );
+    }
+    if (q.type === 'timeline') {
+      return (
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${q.totalBuckets || 5}, 1fr)`, gap: '10px' }}>
+          {Array.from({ length: q.totalBuckets || 5 }).map((_, idx) => {
+            const bucketSize = ((q.endYear || 2025) - (q.startYear || 0)) / (q.totalBuckets || 5);
+            const rawStart = Math.floor((q.startYear || 0) + idx * bucketSize);
+            const displayStart = idx === 0 ? rawStart : rawStart + 1;
+            const bEnd = Math.floor((q.startYear || 0) + (idx + 1) * bucketSize);
+            return (
+              <div key={idx} style={{ background: 'white', border: '1px solid var(--system-border)', borderRadius: '12px', minHeight: '100px' }}>
+                <div style={{ padding: '6px', textAlign: 'center', fontSize: '9px', fontWeight: '700', borderBottom: '1px solid #f5f5f7', background: '#fafafa', borderRadius: '12px 12px 0 0' }}>{displayStart}-{bEnd}</div>
+                <div style={{ padding: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {(answer?.placed?.[idx] || []).map((ev: any) => {
+                    const originalBucketIdx = q.timelineData?.findIndex(bucket => bucket.some(e => e.id === ev.id));
+                    const isCorrect = originalBucketIdx === idx;
+                    return <div key={ev.id} style={{ padding: '4px 6px', borderRadius: '4px', background: isCorrect ? '#f0fdf4' : '#fff1f2', border: '1px solid', borderColor: isCorrect ? '#22c55e' : '#ef4444', fontSize: '11px', textAlign: 'center', color: isCorrect ? '#166534' : '#991b1b' }}>{ev.text}{!isCorrect && <div style={{ fontSize: '8px', opacity: 0.7 }}>Hoort niet hier</div>}</div>;
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+    return <div style={{ fontSize: '17px', whiteSpace: 'pre-wrap' }}>{typeof answer === 'string' ? answer : <pre style={{ fontSize: '12px' }}>{JSON.stringify(answer, null, 2)}</pre>}</div>;
+  };
+
+  const GroupedQuestionResultRenderer = ({ q, groupedSubs }: { q: Question, groupedSubs: { answer: any, submissions: Submission[] }[] }) => {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+        {groupedSubs.map((group, gIdx) => {
+          const firstSub = group.submissions[0];
+          const answer = firstSub.answers[q.id];
+          const isImageAnalysis = q.type === 'image-analysis';
+          const subIds = group.submissions.map(s => s.id);
+          const firstScore = allManualScores[firstSub.id]?.[q.id];
+
+          return (
+            <div key={gIdx} className="animate-up" style={{ padding: '32px', borderRadius: '24px', background: 'white', border: '1px solid var(--system-border)', marginBottom: '24px', boxShadow: 'var(--shadow-sm)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1, marginRight: '24px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                    {group.submissions.map(s => (
+                      <span key={s.id} className="badge" style={{ background: 'var(--system-blue-light)', color: 'var(--system-blue)', border: 'none', fontWeight: '700', fontSize: '10px' }}>{s.student_name}</span>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--system-secondary-text)', fontWeight: '600' }}>{group.submissions.length} leerlingen met dit antwoord</div>
+                </div>
+                {!isImageAnalysis && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button 
+                      className="btn-secondary" 
+                      style={{ padding: '8px', color: 'var(--system-error)', borderRadius: '12px' }} 
+                      onClick={(e) => { e.stopPropagation(); handleGroupScoreChange(subIds, q.id, '0'); }}
+                    >
+                      <XCircle size={20} />
+                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f5f5f7', padding: '4px 14px', borderRadius: '14px', border: '1px solid var(--system-border)' }}>
+                      <input 
+                        type="number" 
+                        className="input" 
+                        style={{ width: '60px', padding: '6px', textAlign: 'center', border: 'none', background: 'transparent', fontWeight: '800', fontSize: '18px' }} 
+                        value={firstScore ?? ''} 
+                        onChange={(e) => handleGroupScoreChange(subIds, q.id, e.target.value)} 
+                        onClick={(e) => e.stopPropagation()}
+                        placeholder="-" 
+                      />
+                      <span style={{ fontSize: '15px', fontWeight: '700', color: 'var(--system-secondary-text)' }}>/ {q.points}</span>
+                    </div>
+                    <button 
+                      className="btn-secondary" 
+                      style={{ padding: '8px', color: 'var(--system-success)', borderRadius: '12px' }} 
+                      onClick={(e) => { e.stopPropagation(); handleGroupScoreChange(subIds, q.id, q.points.toString()); }}
+                    >
+                      <CheckCircle size={20} />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ background: 'var(--system-secondary-bg)', padding: '24px', borderRadius: '20px' }}>
+                <StudentAnswerView q={q} answer={answer} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   const QuestionResultRenderer = ({ q, submission, showHeader = true }: { q: Question, submission: Submission, showHeader?: boolean }) => {
     const answer = submission.answers[q.id];
     const studentScores = allManualScores[submission.id] || {};
@@ -228,13 +402,31 @@ export default function TeacherResults() {
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             {showHeader && <span className="badge" style={{ background: '#f5f5f7', color: '#1d1d1f', border: 'none', fontWeight: '700' }}>{submission.student_name}</span>}
-            <span className="badge" style={{ background: 'var(--system-blue)', color: 'white', border: 'none' }}>{q.type.toUpperCase()}</span>
+            <span className="badge" style={{ background: 'var(--system-blue-light)', color: 'var(--system-blue)', border: 'none' }}>{q.type.toUpperCase()}</span>
           </div>
           {q.type !== 'image-analysis' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <input type="number" className="input" style={{ width: '70px', padding: '10px', textAlign: 'center', borderRadius: '12px', border: score === null || score === undefined ? '2px dashed #e11d48' : '1px solid #d2d2d7' }} 
-                value={score ?? ''} onChange={(e) => handleScoreChange(submission.id, q.id, e.target.value)} placeholder="-" />
-              <span style={{ fontSize: '15px', fontWeight: '600', color: '#86868b' }}>/ {q.points} pt</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+               <button 
+                className="btn-secondary" 
+                style={{ padding: '6px', color: 'var(--system-error)', borderRadius: '8px' }} 
+                onClick={() => handleScoreChange(submission.id, q.id, '0')}
+                title="Nul punten"
+              >
+                <XCircle size={18} />
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f5f5f7', padding: '2px 10px', borderRadius: '10px', border: '1px solid var(--system-border)' }}>
+                <input type="number" className="input" style={{ width: '60px', padding: '6px', textAlign: 'center', border: 'none', background: 'transparent', fontWeight: '700' }} 
+                  value={score ?? ''} onChange={(e) => handleScoreChange(submission.id, q.id, e.target.value)} placeholder="-" />
+                <span style={{ fontSize: '13px', fontWeight: '600', color: '#86868b' }}>/ {q.points}</span>
+              </div>
+              <button 
+                className="btn-secondary" 
+                style={{ padding: '6px', color: 'var(--system-success)', borderRadius: '8px' }} 
+                onClick={() => handleScoreChange(submission.id, q.id, q.points.toString())}
+                title="Maximum punten"
+              >
+                <CheckCircle size={18} />
+              </button>
             </div>
           )}
         </div>
@@ -286,81 +478,7 @@ export default function TeacherResults() {
             </div>
           </div>
           <div style={{ fontSize: '11px', fontWeight: '700', color: '#86868b', marginBottom: '8px', textTransform: 'uppercase' }}>Antwoord student</div>
-          {q.type === 'multiple-choice' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {q.options?.map((opt, idx) => {
-                const isSelected = answer === opt; const isCorrect = q.correctAnswer === opt;
-                return <div key={idx} style={{ padding: '16px 20px', borderRadius: '12px', border: '1px solid', background: isSelected ? (isCorrect ? '#f0fdf4' : '#fff1f2') : 'white', borderColor: isSelected ? (isCorrect ? '#22c55e' : '#ef4444') : '#d2d2d7', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span style={{ fontWeight: isSelected ? '700' : '500' }}>{opt}</span>{isSelected && (isCorrect ? <CheckCircle size={18} color="#22c55e" /> : <XCircle size={18} color="#ef4444" />)}</div>;
-              })}
-            </div>
-          ) : q.type === 'true-false' ? (
-            <div><div style={{ fontSize: '18px', fontWeight: '700', color: (answer?.value || answer) === q.correctAnswer ? '#22c55e' : '#ef4444' }}>{answer?.value || answer || 'Niet ingevuld'}</div></div>
-          ) : q.type === 'image-analysis' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <img src={q.image} style={{ width: '100%', borderRadius: '12px', border: '1px solid #ddd' }} />
-              {q.subQuestions?.map((sq, idx) => (
-                <div key={sq.id} style={{ padding: '20px', background: 'white', borderRadius: '14px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                    <span style={{ fontSize: '14px', fontWeight: '700' }}>{idx + 1}. {sq.text}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <input type="number" className="input" style={{ width: '60px', padding: '6px', textAlign: 'center', borderRadius: '8px', border: score?.[sq.id] === null || score?.[sq.id] === undefined ? '2px dashed #e11d48' : '1px solid #d2d2d7' }} 
-                        value={score?.[sq.id] ?? ''} onChange={(e) => handleScoreChange(submission.id, q.id, e.target.value, sq.id)} placeholder="-" />
-                      <span style={{ fontSize: '12px', color: '#86868b' }}>/ {sq.points}</span>
-                    </div>
-                  </div>
-                  <p style={{ margin: 0, fontSize: '16px', whiteSpace: 'pre-wrap' }}>{answer?.[sq.id] || <i style={{ color: '#aaa' }}>Geen antwoord</i>}</p>
-                </div>
-              ))}
-            </div>
-          ) : q.type === 'map' ? (
-            <div style={{ position: 'relative', borderRadius: '16px', overflow: 'hidden', border: '1px solid #ddd', background: 'white' }}>
-              <img src={q.image} style={{ width: '100%', display: 'block', opacity: 0.6 }} />
-              {q.locations?.map(loc => <div key={`target-${loc.id}`} style={{ position: 'absolute', left: `${loc.x}%`, top: `${loc.y}%`, transform: 'translate(-50%, -50%)', opacity: 0.15, pointerEvents: 'none' }}><MapPin size={16} color="#22c55e" fill="#22c55e" /></div>)}
-              {q.locations?.map(loc => {
-                const studentLoc = answer?.[loc.id];
-                return studentLoc && <div key={`student-${loc.id}`} style={{ position: 'absolute', left: `${studentLoc.x}%`, top: `${studentLoc.y}%`, transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}><div style={{ background: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: '700', marginBottom: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>{loc.label}</div><MapPin size={20} color="var(--system-blue)" fill="var(--system-blue)" /></div>;
-              })}
-            </div>
-          ) : q.type === 'timeline' ? (
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${q.totalBuckets || 5}, 1fr)`, gap: '10px' }}>
-              {Array.from({ length: q.totalBuckets || 5 }).map((_, idx) => {
-                const bucketSize = ((q.endYear || 2025) - (q.startYear || 0)) / (q.totalBuckets || 5);
-                const rawStart = Math.floor((q.startYear || 0) + idx * bucketSize);
-                const displayStart = idx === 0 ? rawStart : rawStart + 1;
-                const bEnd = Math.floor((q.startYear || 0) + (idx + 1) * bucketSize);
-                return (
-                  <div key={idx} style={{ background: 'white', border: '1px solid var(--system-border)', borderRadius: '12px', minHeight: '100px' }}>
-                    <div style={{ padding: '6px', textAlign: 'center', fontSize: '9px', fontWeight: '700', borderBottom: '1px solid #f5f5f7', background: '#fafafa', borderRadius: '12px 12px 0 0' }}>{displayStart}-{bEnd}</div>
-                    <div style={{ padding: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      {(answer?.placed?.[idx] || []).map((ev: any) => {
-                        const originalBucketIdx = q.timelineData?.findIndex(bucket => bucket.some(e => e.id === ev.id));
-                        const isCorrect = originalBucketIdx === idx;
-                        return <div key={ev.id} style={{ padding: '4px 6px', borderRadius: '4px', background: isCorrect ? '#f0fdf4' : '#fff1f2', border: '1px solid', borderColor: isCorrect ? '#22c55e' : '#ef4444', fontSize: '11px', textAlign: 'center', color: isCorrect ? '#166534' : '#991b1b' }}>{ev.text}{!isCorrect && <div style={{ fontSize: '8px', opacity: 0.7 }}>Hoort niet hier</div>}</div>;
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : q.type === 'table-fill' ? (
-            <div style={{ overflowX: 'auto', background: 'white', borderRadius: '12px', border: '1px solid var(--system-border)', padding: '12px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <tbody>{(q.tableData || []).map((row, rIdx) => (
-                  <tr key={rIdx}>{row.map((cell, cIdx) => {
-                    const isInteractive = q.tableConfig?.interactiveCells?.some(ic => ic.r === rIdx && ic.c === cIdx);
-                    if (!isInteractive) return <td key={cIdx} style={{ border: '1px solid #eee', padding: '10px', background: rIdx === 0 ? '#f5f5f7' : '#fafafa', fontSize: '13px', fontWeight: rIdx === 0 ? 'bold' : 'normal', textAlign: 'center' }}>{cell}</td>;
-                    const cellId = `${rIdx}-${cIdx}`; const studentAns = answer?.[cellId]; const studentText = (typeof studentAns === 'object' ? studentAns?.text : studentAns) || '';
-                    let isCorrect = false;
-                    if (q.tableConfig?.ignoreRowOrder) {
-                      const correctValuesInCol = (q.tableConfig?.interactiveCells || []).filter(ic => ic.c === cIdx).map(ic => (q.tableData?.[ic.r][ic.c] || '').toLowerCase().trim());
-                      isCorrect = studentText !== '' && correctValuesInCol.includes(studentText.toLowerCase().trim());
-                    } else { isCorrect = studentText.toLowerCase().trim() === cell.toLowerCase().trim(); }
-                    return <td key={cIdx} style={{ border: '1px solid #eee', padding: '8px', textAlign: 'center' }}><div style={{ padding: '6px', borderRadius: '6px', background: isCorrect ? '#f0fdf4' : '#fff1f2', border: '1px solid', borderColor: isCorrect ? '#22c55e' : '#ef4444', color: isCorrect ? '#166534' : '#991b1b', fontSize: '13px', fontWeight: '600' }}>{studentText || '-'}{!isCorrect && studentText && <div style={{ fontSize: '10px', marginTop: '4px', borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: '4px' }}>{q.tableConfig?.ignoreRowOrder ? 'Foute kolom' : `Correct: ${cell}`}</div>}</div></td>;
-                  })}</tr>
-                ))}</tbody>
-              </table>
-            </div>
-          ) : <div style={{ fontSize: '17px', whiteSpace: 'pre-wrap' }}>{answer || <i style={{ color: '#aaa' }}>Geen antwoord</i>}</div>}
+          <StudentAnswerView q={q} answer={answer} />
         </div>
       </div>
     );
@@ -384,7 +502,15 @@ export default function TeacherResults() {
               <button className={`btn ${viewMode === 'table' ? '' : 'btn-secondary'}`} onClick={() => setViewMode('table')}><TableIcon size={14} style={{ marginRight: '6px' }}/> Tabel</button>
             </div>
           </div>
-          <button className="btn" onClick={saveAllScores} disabled={isSaving || !hasUnsavedChanges}><Save size={18} style={{ marginRight: '8px' }}/> {isSaving ? 'Bezig...' : 'Alles opslaan'}</button>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button className="btn btn-secondary" onClick={copyForClassroom} title="Kopieer voor spreadsheet/Classroom"><Copy size={18} /> Kopieer lijst</button>
+            <button className="btn btn-secondary" onClick={exportCSV} title="Download CSV bestand"><FileDown size={18} /> CSV Export</button>
+            {user.hasClassroom && (
+              <button className="btn" style={{ background: '#1e8e3e' }} title="Synchroniseer met Google Classroom">
+                <GraduationCap size={18} /> Sync Classroom
+              </button>
+            )}
+          </div>
         </header>
 
         {submissions.length === 0 ? <div className="card" style={{ padding: '80px', textAlign: 'center' }}><p className="text-muted">Nog geen inzendingen.</p></div> : viewMode === 'individual' ? (
@@ -409,7 +535,28 @@ export default function TeacherResults() {
               <div style={{ textAlign: 'center' }}><div style={{ fontSize: '18px', fontWeight: '700' }}>Vraag {selectedQuestionIdx + 1} van {exam?.questions.length}</div><div style={{ fontSize: '13px', color: '#86868b' }}>{exam?.questions[selectedQuestionIdx]?.type.toUpperCase()}</div></div>
               <button className="btn btn-secondary" disabled={selectedQuestionIdx === (exam?.questions.length || 0) - 1} onClick={() => setSelectedQuestionIdx(selectedQuestionIdx + 1)}><ChevronRight size={20}/></button>
             </div>
-            {exam?.questions[selectedQuestionIdx] && <div className="animate-up"><h2 style={{ padding: '0 12px 32px', fontSize: '24px', fontWeight: '700' }}>{exam.questions[selectedQuestionIdx].text}</h2>{submissions.map(sub => <QuestionResultRenderer key={sub.id} q={exam.questions[selectedQuestionIdx]} submission={sub} />)}</div>}
+            {exam?.questions[selectedQuestionIdx] && (() => {
+               const q = exam.questions[selectedQuestionIdx];
+               // Group submissions by answer
+               const groups: { answer: any, submissions: Submission[] }[] = [];
+               submissions.forEach(sub => {
+                 const answer = sub.answers[q.id];
+                 const answerKey = JSON.stringify(answer);
+                 const existingGroup = groups.find(g => JSON.stringify(g.answer) === answerKey);
+                 if (existingGroup) {
+                   existingGroup.submissions.push(sub);
+                 } else {
+                   groups.push({ answer, submissions: [sub] });
+                 }
+               });
+
+               return (
+                <div className="animate-up">
+                  <h2 style={{ padding: '0 12px 32px', fontSize: '24px', fontWeight: '700' }}>{q.text}</h2>
+                  <GroupedQuestionResultRenderer q={q} groupedSubs={groups} />
+                </div>
+               );
+            })()}
           </div>
         ) : (
           <div className="card animate-up" style={{ padding: 0, overflow: 'hidden', borderRadius: '24px' }}>
@@ -426,6 +573,49 @@ export default function TeacherResults() {
           </div>
         )}
       </main>
+
+      {/* Floating Save Bar */}
+      {hasUnsavedChanges && (
+        <div 
+          className="glass animate-up" 
+          onClick={saveAllScores}
+          style={{ 
+            position: 'fixed', 
+            bottom: '32px', 
+            left: '50%', 
+            transform: 'translateX(-50%)', 
+            padding: '16px 32px', 
+            borderRadius: '20px', 
+            boxShadow: 'var(--shadow-lg)', 
+            border: '1px solid var(--system-blue)',
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '16px', 
+            cursor: 'pointer',
+            zIndex: 2000,
+            transition: 'var(--spring)'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'translateX(-50%) scale(1.02)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'translateX(-50%) scale(1)'}
+        >
+          <div style={{ background: 'var(--system-blue)', color: 'white', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Save size={18} />
+          </div>
+          <div>
+            <p style={{ margin: 0, fontWeight: '700', fontSize: '15px', color: 'var(--system-text)' }}>Scores aangepast</p>
+            <p style={{ margin: 0, fontSize: '13px', color: 'var(--system-blue)', fontWeight: '600' }}>Klik hier om alles op te slaan</p>
+          </div>
+          {isSaving && (
+            <div style={{ marginLeft: '12px', width: '20px', height: '20px', border: '2px solid var(--system-blue)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+          )}
+        </div>
+      )}
+
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

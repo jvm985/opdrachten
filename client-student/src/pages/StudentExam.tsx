@@ -541,59 +541,88 @@ export default function StudentExam() {
           <button className="btn" onClick={enterFullscreen} style={{ fontSize: '17px', padding: '12px 32px' }}>Start in Fullscreen</button>
         </div>
       ) : (
-        <div style={{ display: 'flex', height: '100vh' }}>
-          <div style={{ width: '70px', background: 'var(--system-secondary-bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 0', gap: '24px', borderRight: '1px solid var(--system-border)' }}>
-            <div title="Vragen" style={{ cursor: 'pointer', opacity: activeTool === null ? 1 : 0.4 }} onClick={() => setActiveTool(null)}><Info /></div>
-            <div title="Rekenmachine" style={{ cursor: 'pointer', opacity: activeTool === 'calc' ? 1 : 0.4 }} onClick={() => setActiveTool('calc')}><Calculator /></div>
-            <div title="Chat" style={{ cursor: 'pointer', opacity: activeTool === 'chat' ? 1 : 0.4 }} onClick={() => setActiveTool('chat')}><MessageSquare /></div>
-            <div style={{ marginTop: 'auto', cursor: 'pointer', color: 'var(--system-error)' }} onClick={() => { if(confirm('Inleveren?')) submitExam(answers); }}><LogOut /></div>
+        <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+          <div className="glass" style={{ width: '80px', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 0', gap: '32px', borderRight: '1px solid var(--system-border-light)', zIndex: 10 }}>
+            <div title="Vragen" style={{ cursor: 'pointer', transition: 'var(--transition-fast)', transform: activeTool === null ? 'scale(1.1)' : 'scale(1)', color: activeTool === null ? 'var(--system-blue)' : 'var(--system-tertiary-text)' }} onClick={() => setActiveTool(null)}><Info size={28} /></div>
+            <div title="Rekenmachine" style={{ cursor: 'pointer', transition: 'var(--transition-fast)', transform: activeTool === 'calc' ? 'scale(1.1)' : 'scale(1)', color: activeTool === 'calc' ? 'var(--system-blue)' : 'var(--system-tertiary-text)' }} onClick={() => setActiveTool('calc')}><Calculator size={28} /></div>
+            <div title="Chat" style={{ cursor: 'pointer', transition: 'var(--transition-fast)', transform: activeTool === 'chat' ? 'scale(1.1)' : 'scale(1)', color: activeTool === 'chat' ? 'var(--system-blue)' : 'var(--system-tertiary-text)' }} onClick={() => setActiveTool('chat')}><MessageSquare size={28} /></div>
+            <div style={{ marginTop: 'auto', cursor: 'pointer', color: 'var(--system-error)', opacity: 0.8, transition: 'var(--transition-fast)' }} onMouseEnter={(e) => e.currentTarget.style.opacity = '1'} onMouseLeave={(e) => e.currentTarget.style.opacity = '0.8'} onClick={() => { if(confirm('Inleveren?')) submitExam(answers); }}><LogOut size={28} /></div>
           </div>
 
-          <div style={{ flex: 1, padding: '60px', overflowY: 'auto' }}>
-            <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-              <header style={{ marginBottom: '60px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--system-border)', paddingBottom: '24px' }}>
+          <div style={{ flex: 1, padding: '0', overflowY: 'auto', background: 'var(--system-secondary-bg)' }}>
+            <div style={{ maxWidth: '1000px', margin: '60px auto', padding: '0 40px' }}>
+              <header className="card" style={{ marginBottom: '40px', padding: '32px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: 'none', boxShadow: 'var(--shadow-md)' }}>
                 <div>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
-                    <span className="badge" style={{ background: 'var(--system-blue)', color: 'white', border: 'none', textTransform: 'uppercase' }}>{exam.type || 'examen'}</span>
+                    <span className="badge" style={{ background: 'var(--system-blue-light)', color: 'var(--system-blue)', fontWeight: '800' }}>{exam.type || 'examen'}</span>
                   </div>
-                  <h1 style={{ margin: 0, fontSize: '32px' }}>{exam.title}</h1>
-                  <p className="text-muted" style={{ margin: '8px 0 0' }}>Kandidaat: <strong>{name}</strong></p>
+                  <h1 style={{ margin: 0, fontSize: '32px', letterSpacing: '-0.04em' }}>{exam.title}</h1>
+                  <p style={{ margin: '8px 0 0', color: 'var(--system-secondary-text)', fontWeight: '500' }}>Kandidaat: <strong style={{ color: 'var(--system-text)' }}>{name}</strong></p>
                 </div>
-                <button className="btn btn-secondary" onClick={() => setViewMode(viewMode === 'single' ? 'list' : 'single')}>
-                  {viewMode === 'single' ? <LayoutList size={16}/> : <Layout size={16}/>}
-                  {viewMode === 'single' ? 'Lijstweergave' : 'Stapsgewijs'}
-                </button>
+                <div className="filter-bar">
+                  <button className={`filter-item ${viewMode === 'single' ? 'active' : ''}`} onClick={() => setViewMode('single')}>Stapsgewijs</button>
+                  <button className={`filter-item ${viewMode === 'list' ? 'active' : ''}`} onClick={() => setViewMode('list')}>Lijst</button>
+                </div>
               </header>
 
               {viewMode === 'single' ? (
-                <>
-                  <nav style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', marginBottom: '40px', flexWrap: 'wrap' }}>
+                <div className="animate-up">
+                  <nav style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', marginBottom: '40px', flexWrap: 'wrap', padding: '20px', background: 'rgba(0,0,0,0.02)', borderRadius: '24px' }}>
                     {exam.questions.map((q: any, idx: number) => {
                       const isCurrent = currentQuestionIndex === idx;
                       const isAnswered = isQuestionAnswered(q);
-                      let bgColor = 'white'; let textColor = 'var(--system-text)'; let borderColor = 'var(--system-border)';
-                      if (isAnswered) { bgColor = '#86868b'; textColor = 'white'; borderColor = '#86868b'; }
-                      if (isCurrent) { bgColor = 'var(--system-blue)'; textColor = 'white'; borderColor = 'var(--system-blue)'; }
+                      
                       return (
-                        <button key={idx} onClick={() => setCurrentQuestionIndex(idx)} style={{ width: '36px', height: '36px', borderRadius: '50%', fontSize: '14px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bgColor, color: textColor, border: `1px solid ${borderColor}`, cursor: 'pointer', transition: 'all 0.2s ease', transform: isCurrent ? 'scale(1.15)' : 'scale(1)', boxShadow: isCurrent ? '0 4px 12px rgba(0,113,227,0.25)' : 'none' }} title={`Vraag ${idx + 1}`}>{idx + 1}</button>
+                        <button 
+                          key={idx} 
+                          onClick={() => setCurrentQuestionIndex(idx)} 
+                          style={{ 
+                            width: '40px', 
+                            height: '40px', 
+                            borderRadius: '12px', 
+                            fontSize: '15px', 
+                            fontWeight: '800', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            background: isCurrent ? 'var(--system-blue)' : (isAnswered ? 'white' : 'transparent'), 
+                            color: isCurrent ? 'white' : (isAnswered ? 'var(--system-text)' : 'var(--system-secondary-text)'), 
+                            border: isCurrent ? 'none' : (isAnswered ? '1px solid var(--system-border)' : '1px solid transparent'), 
+                            cursor: 'pointer', 
+                            transition: 'var(--spring)', 
+                            transform: isCurrent ? 'scale(1.1) translateY(-2px)' : 'scale(1)', 
+                            boxShadow: isCurrent ? '0 8px 16px rgba(0,113,227,0.3)' : (isAnswered ? '0 2px 4px rgba(0,0,0,0.05)' : 'none') 
+                          }} 
+                          title={`Vraag ${idx + 1}`}
+                        >
+                          {idx + 1}
+                        </button>
                       );
                     })}
                   </nav>
-                  <QuestionRenderer q={exam.questions[currentQuestionIndex]} {...rendererProps} />
-                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', marginTop: '60px', borderTop: '1px solid var(--system-border)', paddingTop: '40px' }}>
-                    <button className="btn btn-secondary" style={{ padding: '12px 32px' }} disabled={currentQuestionIndex === 0} onClick={() => setCurrentQuestionIndex(currentQuestionIndex - 1)}><ChevronLeft size={16} /> Vorige</button>
+                  
+                  <div className="card" style={{ padding: '60px', border: 'none', boxShadow: 'var(--shadow-lg)' }}>
+                    <QuestionRenderer q={exam.questions[currentQuestionIndex]} {...rendererProps} />
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '24px', marginTop: '40px' }}>
+                    <button className="btn btn-secondary" style={{ height: '54px', padding: '0 32px' }} disabled={currentQuestionIndex === 0} onClick={() => setCurrentQuestionIndex(currentQuestionIndex - 1)}><ChevronLeft size={20} /> Vorige</button>
                     {currentQuestionIndex === exam.questions.length - 1 ? (
-                      <button className="btn" style={{ padding: '12px 48px', fontSize: '17px', fontWeight: '700', boxShadow: '0 10px 20px rgba(0,113,227,0.3)' }} onClick={() => { if(confirm('Weet je zeker dat je wilt inleveren?')) submitExam(answers); }}>{exam.type?.toUpperCase() || 'EXAMEN'} INLEVEREN</button>
+                      <button className="btn" style={{ height: '54px', padding: '0 48px', fontSize: '17px', background: 'var(--system-success)', boxShadow: '0 10px 24px rgba(52,199,89,0.3)' }} onClick={() => { if(confirm('Weet je zeker dat je wilt inleveren?')) submitExam(answers); }}>INLEVEREN</button>
                     ) : (
-                      <button className="btn btn-secondary" style={{ padding: '12px 32px' }} onClick={() => setCurrentQuestionIndex(currentQuestionIndex + 1)}>Volgende <ChevronRight size={16} /></button>
+                      <button className="btn" style={{ height: '54px', padding: '0 40px' }} onClick={() => setCurrentQuestionIndex(currentQuestionIndex + 1)}>Volgende <ChevronRight size={20} /></button>
                     )}
                   </div>
-                </>
+                </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '64px' }}>
-                  {exam.questions.map((q: any) => <QuestionRenderer key={q.id} q={q} {...rendererProps} />)}
-                  <div style={{ textAlign: 'center', paddingTop: '40px', borderTop: '1px solid var(--system-border)' }}>
-                    <button className="btn" style={{ padding: '16px 40px', fontSize: '18px' }} onClick={() => { if(confirm('Weet je zeker dat je wilt inleveren?')) submitExam(answers); }}>{(exam.type || 'examen').charAt(0).toUpperCase() + (exam.type || 'examen').slice(1)} Inleveren</button>
+                <div className="animate-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                  {exam.questions.map((q: any) => (
+                    <div key={q.id} className="card" style={{ padding: '48px', border: 'none', boxShadow: 'var(--shadow-sm)' }}>
+                      <QuestionRenderer q={q} {...rendererProps} />
+                    </div>
+                  ))}
+                  <div style={{ textAlign: 'center', padding: '60px 0' }}>
+                    <button className="btn" style={{ height: '64px', padding: '0 64px', fontSize: '20px', background: 'var(--system-success)', boxShadow: '0 12px 32px rgba(52,199,89,0.4)' }} onClick={() => { if(confirm('Weet je zeker dat je wilt inleveren?')) submitExam(answers); }}>{exam.type?.toUpperCase()} Inleveren</button>
                   </div>
                 </div>
               )}

@@ -1,0 +1,84 @@
+# BLAUWDRUK: DIGITALE TOETSOMGEVING (Exam-Net Clone)
+Dit bestand bevat de volledige functionele en technische beschrijving van de applicatie voor Atheneum Kapellen.
+
+## 1. ARCHITECTUUR & INFRASTRUCTUUR
+- **Monorepo Structuur**: 
+  - `server/`: Node.js/Express API met SQLite database.
+  - `client-teacher/`: React (Vite) portaal voor docenten.
+  - `client-student/`: React (Vite) portaal voor studenten.
+- **Poorten**: Lokaal: 5173 (Docent), 5174 (Student), 3001 (API). Productie: Docker poort 9000 (Frontend) en 3001 (API).
+- **Docker**: Volledige containerisatie van de backend en frontends.
+- **Nginx**: Host Nginx fungeert als reverse proxy met HTTPS (Certbot) en poort-forwarding naar Docker.
+- **WebSockets**: Real-time communicatie (Socket.io) voor live tracking en automatische dashboard updates.
+
+## 2. AUTHENTICATIE & BEVEILIGING
+- **Google OAuth**: Verplichte login voor zowel docenten als studenten.
+- **Domeinbeperking**: Alleen accounts eindigend op `@atheneumkapellen.be` zijn toegestaan.
+- **Whitelist**: Docenten moeten expliciet in de database staan om in te loggen.
+- **Studentenmatch**: Studenten worden automatisch gekoppeld aan de klaslijst (geïmporteerd uit PDF) op basis van hun Google-email.
+- **Examenbeveiliging**:
+  - Fullscreen verplichting (detectie en blokkade).
+  - Tab-wissel detectie (cheat alerts naar docent).
+  - Live sessie beheer: Docent moet sessie handmatig openen met specifieke beveiligingsinstellingen.
+
+## 3. DOCENTEN PORTAAL (Frontend)
+### Dashboard & Beheer
+- **Tabs**: "Mijn opdrachten", "Gedeeld door collega's", "Prullenmand".
+- **Toetskaarten**: Tonen type, titel, aantal vragen, punten, aantal inzendingen en labels.
+- **Dropdown Menu (...)**: Bevat acties zoals Live Sessie, Inzendingen, Preview, Kopieer, Delen, Afdrukken, Bewerken en Verwijderen.
+- **Delen**: Toetsen kunnen gedeeld worden met collega's (alleen-lezen kopieën).
+- **Prullenmand**: Soft-delete functionaliteit met herstel-optie (restore).
+
+### Toets Editor
+- **Titel & Metadata**: Instellen van type (taak/toets/examen), punten (aan/uit), labels en deel-status.
+- **View Modes**: Wisselen tussen "Stapsgewijs" (één vraag per pagina) en "Lijst" (alle vragen onder elkaar).
+- **Vraagbank Integration**: Vragen importeren uit eigen bank of gedeelde bank van collega's.
+- **Vraag Types**:
+  - **Open Vraag**: Tekstveld met modeloplossing.
+  - **Meerkeuze**: Opties toevoegen, correct antwoord aanduiden.
+  - **Waar/Onwaar**: Met optionele uitleg bij 'Onwaar'.
+  - **Blinde Kaart**: Afbeelding uploaden/plakken, markers plaatsen en labels geven. Markers zijn versleepbaar.
+  - **Definities**: Begrippen koppelen aan omschrijvingen.
+  - **Matching**: Paren maken (links/rechts).
+  - **Ordering**: Items in juiste volgorde zetten (verticaal/horizontaal).
+  - **Afbeelding Analyse**: Hoofdafbeelding met onbeperkt aantal subvragen. Punten worden automatisch gesommeerd.
+  - **Tijdlijn**: Begin/eindjaar opgeven, vakjes (buckets) verdelen, gebeurtenissen in vakjes plaatsen.
+  - **Invultabel**: Volledige tabel maken, cellen markeren als interactief (typen of slepen), volgorde-optie (ignoreRowOrder).
+- **Clipboard Support**: Afbeeldingen direct in de editor plakken (Ctrl+V).
+
+### Evaluatie (Inzendingen)
+- **Drie Weergaven**:
+  - **Per Student**: Volledig examen van één leerling doorlopen.
+  - **Per Vraag**: Antwoorden van de hele klas op één specifieke vraag vergelijken.
+  - **Tabel**: Compact overzicht van alle scores per student/vraag.
+- **Auto-grading**: Automatische verbetering van MC, Waar/Onwaar, Matching, Ordering, Tijdlijn en Tabel.
+- **Modeloplossing**: Altijd zichtbaar in een blauw kader ter referentie tijdens het nakijken.
+- **Live Updates**: Dashboard teller voor inzendingen wordt real-time bijgewerkt via WebSockets.
+
+## 4. STUDENTEN PORTAAL (Frontend)
+- **Login**: Invoeren van examensleutel + Google Login.
+- **Interface**:
+  - Apple-style minimalistisch design.
+  - Navigatie via grote genummerde bolletjes: blauw (huidig), donkergrijs (ingevuld), lichtgrijs (leeg).
+  - Wisselen tussen lijstweergave en stapsgewijze weergave.
+  - Extra tools: Rekenmachine, Chat met docent.
+- **Vraag-interactie**:
+  - Drag-and-drop voor tijdlijn, matching en tabel-slepen.
+  - Klikken op geplaatste termen om ze terug te zetten in de lijst.
+  - Versleepbare markers op blinde kaarten.
+- **Inleveren**: Bevestigingsdialoog, automatische inlevering als docent de sessie sluit.
+
+## 5. BACKEND & DATA (Server)
+- **SQLite Schema**:
+  - `exams`: Bevat JSON vragen, instellingen en status (shared/deleted).
+  - `users`: Docenten en admins.
+  - `students`: Geïmporteerde klaslijsten.
+  - `submissions`: Antwoorden en opgeslagen scores van studenten.
+  - `questions_bank`: Individuele vragen voor hergebruik.
+- **API Endpoints**: Volledige CRUD voor alle entiteiten, inclusief specifiek beheer voor gedeelde items en prullenmand.
+- **Data Handling**: Support voor grote payloads (Base64 afbeeldingen) tot 50MB via Nginx en Express.
+
+## 6. DESIGN STANDAARD (UI/UX)
+- **Apple Aesthetics**: Veel witruimte, Inter font, afgeronde hoeken (24px voor kaarten, 12px voor inputs), subtiele schaduwen, glassmorphism (TopNav).
+- **Focus**: Centered single-column layout (max 800px-1000px).
+- **Feedback**: Geen verspringende schermen bij opslaan (lokale state updates), duidelijke foutmeldingen en laad-indicatoren.

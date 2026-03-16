@@ -452,20 +452,20 @@ export default function TeacherDashboard() {
         </div>
       ) : (
         <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '64px 40px' }}>
-          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '48px' }}>
-            <div><h1 style={{ fontSize: '48px', fontWeight: '700', margin: 0, letterSpacing: '-1.5px' }}>Toetsomgeving</h1><p className="text-muted" style={{ fontSize: '19px', marginTop: '4px' }}>Beheer en deel je digitale sessies.</p></div>
-            <button className="btn" style={{ borderRadius: '24px', padding: '12px 24px', fontSize: '16px', fontWeight: '600' }} onClick={handleStartCreate}><Plus size={18} /> Nieuwe Toets</button>
+          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '56px' }}>
+            <div><h1 style={{ margin: 0 }}>Toetsomgeving</h1><p className="text-muted" style={{ fontSize: '20px', fontWeight: '500', marginTop: '4px', letterSpacing: '-0.02em' }}>Beheer en deel je digitale sessies.</p></div>
+            <button className="btn" style={{ height: '48px', padding: '0 28px', fontSize: '16px' }} onClick={handleStartCreate}><Plus size={20} /> Nieuwe Toets</button>
           </header>
 
-          <div style={{ display: 'flex', gap: '24px', marginBottom: '40px', borderBottom: '1px solid var(--system-border)' }}>
+          <div style={{ display: 'flex', gap: '32px', marginBottom: '40px', borderBottom: '1px solid var(--system-border-light)' }}>
             <button 
-              style={{ padding: '12px 4px', fontSize: '16px', fontWeight: '600', border: 'none', background: 'none', borderBottom: activeTab === 'mine' ? '2px solid var(--system-blue)' : '2px solid transparent', color: activeTab === 'mine' ? 'var(--system-blue)' : '#86868b', cursor: 'pointer' }}
+              style={{ padding: '12px 4px', fontSize: '16px', fontWeight: '700', border: 'none', background: 'none', borderBottom: activeTab === 'mine' ? '3px solid var(--system-blue)' : '3px solid transparent', color: activeTab === 'mine' ? 'var(--system-blue)' : 'var(--system-secondary-text)', cursor: 'pointer', transition: 'var(--transition-fast)' }}
               onClick={() => setActiveTab('mine')}
             >
               Mijn opdrachten
             </button>
             <button 
-              style={{ padding: '12px 4px', fontSize: '16px', fontWeight: '600', border: 'none', background: 'none', borderBottom: activeTab === 'shared' ? '2px solid var(--system-blue)' : '2px solid transparent', color: activeTab === 'shared' ? 'var(--system-blue)' : '#86868b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+              style={{ padding: '12px 4px', fontSize: '16px', fontWeight: '700', border: 'none', background: 'none', borderBottom: activeTab === 'shared' ? '3px solid var(--system-blue)' : '3px solid transparent', color: activeTab === 'shared' ? 'var(--system-blue)' : 'var(--system-secondary-text)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'var(--transition-fast)' }}
               onClick={() => setActiveTab('shared')}
             >
               <Users size={18}/> Gedeeld door collega's
@@ -473,31 +473,37 @@ export default function TeacherDashboard() {
           </div>
 
           {allLabels.length > 0 && (
-            <div style={{ marginBottom: '32px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <button onClick={() => setActiveFilters([])} style={{ border: 'none', background: activeFilters.length === 0 ? '#0071e3' : 'white', color: activeFilters.length === 0 ? 'white' : '#1d1d1f', padding: '6px 14px', borderRadius: '16px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>Alle</button>
-              {allLabels.map(l => <button key={l} onClick={() => toggleFilter(l)} style={{ border: 'none', background: activeFilters.includes(l) ? '#0071e3' : 'white', color: activeFilters.includes(l) ? 'white' : '#1d1d1f', padding: '6px 14px', borderRadius: '16px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>{l}</button>)}
+            <div className="filter-bar" style={{ marginBottom: '40px', padding: '6px' }}>
+              <button onClick={() => setActiveFilters([])} className={`filter-item ${activeFilters.length === 0 ? 'active' : ''}`}>Alle</button>
+              {allLabels.map(l => <button key={l} onClick={() => toggleFilter(l)} className={`filter-item ${activeFilters.includes(l) ? 'active' : ''}`}>{l}</button>)}
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
             {filteredExams.map(exam => {
               const total = exam.questions.reduce((s, q) => s + (q.type === 'image-analysis' ? (q.subQuestions?.reduce((ss, sq) => ss + sq.points, 0) || 0) : q.points), 0);
               const isOwn = activeTab === 'mine';
               return (
-                <div key={exam.id} className="card card-hoverable" style={{ padding: '20px', display: 'flex', flexDirection: 'column', borderRadius: '18px', border: '1px solid rgba(0,0,0,0.05)', background: 'white', position: 'relative' }}>
+                <div key={exam.id} className="card card-hoverable" style={{ padding: '24px', position: 'relative' }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '10px', fontWeight: '700', color: '#0071e3', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{exam.type}</span>
-                          {exam.isShared && isOwn && <Share2 size={10} color="#0071e3" />}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span className="badge" style={{ background: 'var(--system-blue-light)', color: 'var(--system-blue)' }}>{exam.type}</span>
+                          {exam.isShared && isOwn && <Share2 size={12} color="var(--system-blue)" />}
                         </div>
-                        <h3 style={{ fontSize: '18px', margin: 0, fontWeight: '600', lineHeight: '1.2' }}>{exam.title}</h3>
-                        {!isOwn && <p style={{ fontSize: '11px', color: 'var(--system-blue)', fontWeight: '600', margin: '2px 0' }}>Door: {(exam as any).teacherName}</p>}
-                        <p style={{ fontSize: '13px', color: '#86868b', margin: '4px 0 0' }}>{exam.questions.length} vragen • {exam.isGraded ? `${total} pt` : 'Geen ptn'} {isOwn && `• ${exam.submissionCount} inzendingen`}</p>
+                        <h3 style={{ margin: '4px 0', fontSize: '20px', lineHeight: '1.2' }}>{exam.title}</h3>
+                        {!isOwn && <p style={{ fontSize: '13px', color: 'var(--system-blue)', fontWeight: '700', margin: '2px 0' }}>{exam.teacherName}</p>}
+                        <p style={{ fontSize: '14px', color: 'var(--system-secondary-text)', fontWeight: '500', marginTop: '4px' }}>{exam.questions.length} vragen • {exam.isGraded ? `${total} pt` : 'Geen ptn'}</p>
+                        {isOwn && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px' }}>
+                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: exam.submissionCount > 0 ? 'var(--system-success)' : 'var(--system-tertiary-text)' }}></div>
+                            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--system-secondary-text)' }}>{exam.submissionCount} inzendingen</span>
+                          </div>
+                        )}
                       </div>
                       <div style={{ position: 'relative' }}>
-                        <button className="btn btn-secondary" style={{ padding: '4px', borderRadius: '50%', width: '28px', height: '28px' }} onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === exam.id ? null : exam.id); }}><MoreVertical size={16}/></button>
+                        <button className="btn-secondary" style={{ width: '32px', height: '32px', padding: 0, borderRadius: '50%' }} onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === exam.id ? null : exam.id); }}><MoreVertical size={18}/></button>
                         {openMenuId === exam.id && (
                           <div className="animate-up" style={{ position: 'absolute', top: '32px', right: 0, width: '220px', background: 'white', borderRadius: '14px', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', border: '1px solid rgba(0,0,0,0.05)', zIndex: 50, padding: '6px' }}>
                             {isOwn ? (
