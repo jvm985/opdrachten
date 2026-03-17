@@ -7,6 +7,7 @@
     "start": "ts-node src/index.ts",
     "dev": "nodemon src/index.ts",
     "seed": "ts-node src/seed.ts",
+    "create-demo": "ts-node src/create_demo.ts",
     "build": "tsc",
     "test": "NODE_ENV=test jest --forceExit"
   },

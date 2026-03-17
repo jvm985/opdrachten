@@ -42,6 +42,7 @@ export interface Exam {
   hasSubmissions: boolean;
   isShared: boolean;
   isDeleted: boolean;
+  teacherName?: string;
   created_at: string;
 }
 

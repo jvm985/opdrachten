@@ -5,10 +5,20 @@ async function createDemo() {
   console.log('🌱 Start creating demo data...');
   await initDb();
 
-  const teacherId = 't1';
-  const examId = randomUUID();
-  const examKey = 'DEMO' + Math.floor(Math.random() * 1000);
+  const teacherId = 'teacher-1';
+  const examKey = 'DEMO-ALGEMENE-KENNIS';
 
+  // Check if exam already exists
+  const existingExam: any = await new Promise((resolve) => {
+    db.get('SELECT id FROM exams WHERE exam_key = ?', [examKey], (err, row) => resolve(row));
+  });
+
+  if (existingExam) {
+    console.log(`ℹ️ Demo exam ${examKey} already exists. Skipping creation.`);
+    process.exit(0);
+  }
+
+  const examId = randomUUID();
   const questions = [
     {
       id: 'q1',

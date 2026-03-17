@@ -5,8 +5,6 @@ git pull origin main
 
 # Gebruik een tijdelijke Node container om te installeren, testen en bouwen
 echo "🐳 Running Tests and Building Frontends inside Docker..."
-# Verwijder oude node_modules om permissie problemen te voorkomen
-sudo rm -rf node_modules server/node_modules client-teacher/node_modules client-student/node_modules
 
 sudo docker run --rm -v $(pwd):/app -w /app node:22-alpine sh -c "
   echo '📦 Installing dependencies...' &&
@@ -43,6 +41,7 @@ if [ -z "$CONTAINER_NAME" ]; then
 else
   echo "📍 Seeding container: $CONTAINER_NAME"
   sudo docker exec "$CONTAINER_NAME" npm run seed
+  sudo docker exec "$CONTAINER_NAME" npm run create-demo
 fi
 
 echo "✅ Deployment finished successfully!"
