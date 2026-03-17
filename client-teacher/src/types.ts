@@ -30,6 +30,7 @@ export interface Question {
 
 export interface Exam {
   id: string;
+  teacher_id: string;
   title: string;
   exam_key: string;
   questions: Question[];
