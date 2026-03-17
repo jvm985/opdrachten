@@ -211,24 +211,40 @@ app.delete('/api/exams/:id', (req, res) => {
   });
 });
 
-app.get('/api/teacher/shared-exams', (req, res) => {
-  const { teacherId } = req.query;
+app.get('/api/admin/teachers', (req, res) => {
+  db.all('SELECT id, name, email FROM users WHERE role = "teacher" ORDER BY name', [], (err, rows) => {
+    res.json(rows || []);
+  });
+});
+
+app.get('/api/admin/all-exams', (req, res) => {
   db.all(`
-    SELECT e.*, u.name as teacher_name
-    FROM exams e
+    SELECT e.*, u.name as teacher_name, u.email as teacher_email,
+    (SELECT COUNT(*) FROM submissions WHERE exam_id = e.id) as submission_count
+    FROM exams e 
     JOIN users u ON e.teacher_id = u.id
-    WHERE e.is_shared = 1 AND e.teacher_id != ?
-    ORDER BY e.created_at DESC`, [teacherId], (err, rows: any[]) => {
+    WHERE e.is_deleted = 0
+    ORDER BY e.created_at DESC`, [], (err, rows: any[]) => {
     const result = (rows || []).map(r => ({ 
       ...r, questions: JSON.parse(r.questions),
       labels: r.labels ? JSON.parse(r.labels) : [],
       isGraded: !!r.is_graded,
       requireFullscreen: !!r.require_fullscreen,
       detectTabSwitch: !!r.detect_tab_switch,
-      isShared: true,
-      teacherName: r.teacher_name
+      isShared: !!r.is_shared,
+      submissionCount: r.submission_count,
+      teacherName: r.teacher_name,
+      teacherEmail: r.teacher_email
     }));
     res.json(result);
+  });
+});
+
+app.put('/api/admin/exams/:id/reassign', (req, res) => {
+  const { teacherId } = req.body;
+  db.run('UPDATE exams SET teacher_id = ? WHERE id = ?', [teacherId, req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: 'DB Error' });
+    res.json({ success: true });
   });
 });
 

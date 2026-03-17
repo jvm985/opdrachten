@@ -11,7 +11,10 @@ export default function TeacherDashboard() {
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const [exams, setExams] = useState<Exam[]>([]);
   const [sharedExams, setSharedExams] = useState<Exam[]>([]);
-  const [activeTab, setActiveTab] = useState<'mine' | 'shared'>('mine');
+  const [allExams, setAllExams] = useState<Exam[]>([]);
+  const [allTeachers, setAllTeachers] = useState<{id: string, name: string, email: string}[]>([]);
+  const [activeTab, setActiveTab] = useState<'mine' | 'shared' | 'admin'>('mine');
+  const isAdmin = user.email === 'joachim.vanmeirvenne@atheneumkapellen.be';
   const [filteredExams, setFilteredExams] = useState<Exam[]>([]);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -66,6 +69,10 @@ export default function TeacherDashboard() {
     if (user.role !== 'teacher') { navigate('/login'); return; }
     fetchExams();
     fetchSharedExams();
+    if (isAdmin) {
+      fetchAllExams();
+      fetchAllTeachers();
+    }
 
     const socket = io();
     socket.on('submission_received', ({ examId }) => {
@@ -78,13 +85,17 @@ export default function TeacherDashboard() {
   }, []);
 
   useEffect(() => {
-    const list = activeTab === 'mine' ? exams : sharedExams;
+    let list: Exam[] = [];
+    if (activeTab === 'mine') list = exams;
+    else if (activeTab === 'shared') list = sharedExams;
+    else if (activeTab === 'admin') list = allExams;
+
     if (activeFilters.length > 0) {
       setFilteredExams(list.filter(e => activeFilters.every(filter => e.labels.includes(filter))));
     } else {
       setFilteredExams(list);
     }
-  }, [activeFilters, exams, sharedExams, activeTab]);
+  }, [activeFilters, exams, sharedExams, allExams, activeTab]);
 
   const fetchExams = async () => {
     try {
@@ -99,6 +110,38 @@ export default function TeacherDashboard() {
       const res = await fetch(`/api/teacher/shared-exams?teacherId=${user.id}`);
       const data = await res.json();
       setSharedExams(Array.isArray(data) ? data : []);
+    } catch (e) { console.error(e); }
+  };
+
+  const fetchAllExams = async () => {
+    try {
+      const res = await fetch('/api/admin/all-exams');
+      const data = await res.json();
+      setAllExams(Array.isArray(data) ? data : []);
+    } catch (e) { console.error(e); }
+  };
+
+  const fetchAllTeachers = async () => {
+    try {
+      const res = await fetch('/api/admin/teachers');
+      const data = await res.json();
+      setAllTeachers(Array.isArray(data) ? data : []);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleReassignTeacher = async (examId: string, teacherId: string) => {
+    if (!confirm('Toets toewijzen aan deze docent?')) return;
+    try {
+      const res = await fetch(`/api/admin/exams/${examId}/reassign`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teacherId })
+      });
+      if (res.ok) {
+        fetchAllExams();
+        fetchExams();
+        alert('Toets succesvol toegewezen!');
+      }
     } catch (e) { console.error(e); }
   };
 
@@ -470,6 +513,14 @@ export default function TeacherDashboard() {
             >
               <Users size={18}/> Gedeeld door collega's
             </button>
+            {isAdmin && (
+              <button 
+                style={{ padding: '12px 4px', fontSize: '16px', fontWeight: '700', border: 'none', background: 'none', borderBottom: activeTab === 'admin' ? '3px solid var(--system-blue)' : '3px solid transparent', color: activeTab === 'admin' ? 'var(--system-blue)' : 'var(--system-secondary-text)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'var(--transition-fast)' }}
+                onClick={() => setActiveTab('admin')}
+              >
+                <Database size={18}/> Alle opdrachten (Admin)
+              </button>
+            )}
           </div>
 
           {allLabels.length > 0 && (
@@ -482,7 +533,9 @@ export default function TeacherDashboard() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
             {filteredExams.map(exam => {
               const total = exam.questions.reduce((s, q) => s + (q.type === 'image-analysis' ? (q.subQuestions?.reduce((ss, sq) => ss + sq.points, 0) || 0) : q.points), 0);
-              const isOwn = activeTab === 'mine';
+              const isOwn = activeTab === 'mine' || (activeTab === 'admin' && exam.teacher_id === user.id);
+              const showTeacherInfo = activeTab === 'shared' || activeTab === 'admin';
+              
               return (
                 <div key={exam.id} className="card card-hoverable" style={{ padding: '24px', position: 'relative' }}>
                   <div style={{ flex: 1 }}>
@@ -493,20 +546,35 @@ export default function TeacherDashboard() {
                           {exam.isShared && isOwn && <Share2 size={12} color="var(--system-blue)" />}
                         </div>
                         <h3 style={{ margin: '4px 0', fontSize: '20px', lineHeight: '1.2' }}>{exam.title}</h3>
-                        {!isOwn && <p style={{ fontSize: '13px', color: 'var(--system-blue)', fontWeight: '700', margin: '2px 0' }}>{exam.teacherName}</p>}
-                        <p style={{ fontSize: '14px', color: 'var(--system-secondary-text)', fontWeight: '500', marginTop: '4px' }}>{exam.questions.length} vragen • {exam.isGraded ? `${total} pt` : 'Geen ptn'}</p>
-                        {isOwn && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px' }}>
-                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: exam.submissionCount > 0 ? 'var(--system-success)' : 'var(--system-tertiary-text)' }}></div>
-                            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--system-secondary-text)' }}>{exam.submissionCount} inzendingen</span>
+                        {showTeacherInfo && (
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <p style={{ fontSize: '13px', color: 'var(--system-blue)', fontWeight: '700', margin: '2px 0' }}>{exam.teacherName}</p>
+                            {activeTab === 'admin' && (
+                              <select 
+                                className="input" 
+                                style={{ padding: '4px 8px', fontSize: '12px', marginTop: '8px', height: 'auto', width: 'auto' }}
+                                value={exam.teacher_id}
+                                onChange={(e) => handleReassignTeacher(exam.id, e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {allTeachers.map(t => (
+                                  <option key={t.id} value={t.id}>{t.name} ({t.email})</option>
+                                ))}
+                              </select>
+                            )}
                           </div>
                         )}
+                        <p style={{ fontSize: '14px', color: 'var(--system-secondary-text)', fontWeight: '500', marginTop: '4px' }}>{exam.questions.length} vragen • {exam.isGraded ? `${total} pt` : 'Geen ptn'}</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px' }}>
+                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: exam.submissionCount > 0 ? 'var(--system-success)' : 'var(--system-tertiary-text)' }}></div>
+                          <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--system-secondary-text)' }}>{exam.submissionCount} inzendingen</span>
+                        </div>
                       </div>
                       <div style={{ position: 'relative' }}>
                         <button className="btn-secondary" style={{ width: '32px', height: '32px', padding: 0, borderRadius: '50%' }} onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === exam.id ? null : exam.id); }}><MoreVertical size={18}/></button>
                         {openMenuId === exam.id && (
                           <div className="animate-up" style={{ position: 'absolute', top: '32px', right: 0, width: '220px', background: 'white', borderRadius: '14px', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', border: '1px solid rgba(0,0,0,0.05)', zIndex: 50, padding: '6px' }}>
-                            {isOwn ? (
+                            {(isOwn || activeTab === 'admin') ? (
                               <>
                                 <button style={{ ...dropdownItemStyle, color: 'var(--system-blue)', fontWeight: '700' }} onClick={() => handleStartLiveSessie(exam)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><Play size={14}/> Start Live Sessie</button>
                                 <div style={{ height: '1px', background: '#f5f5f7', margin: '4px 0' }} />
