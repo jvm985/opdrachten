@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Shield, ChevronLeft, ChevronRight, CheckCircle, Info, Calculator, MessageSquare, LogOut, GripVertical, MapPin, LayoutList, Layout } from 'lucide-react';
+import { Shield, ChevronLeft, ChevronRight, CheckCircle, Info, Calculator, MessageSquare, LogOut, GripVertical, MapPin } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import type { Question } from '../types';
 
