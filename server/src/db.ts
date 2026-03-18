@@ -113,12 +113,16 @@ export const initDb = () => {
         CREATE TABLE IF NOT EXISTS students (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           name TEXT NOT NULL,
+          first_name TEXT,
+          last_name TEXT,
           klas TEXT NOT NULL,
           email TEXT UNIQUE,
           photo_url TEXT
         )
       `, (err) => {
         if (err) return reject(err);
+        db.run('ALTER TABLE students ADD COLUMN first_name TEXT', () => {});
+        db.run('ALTER TABLE students ADD COLUMN last_name TEXT', () => {});
         db.run('ALTER TABLE students ADD COLUMN email TEXT', () => {});
         console.log('Database tables ready.');
         resolve();

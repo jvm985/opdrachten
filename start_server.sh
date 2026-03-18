@@ -3,4 +3,5 @@
 npm install
 
 # Start alles tegelijk
+fuser -k 3001/tcp
 npm run dev

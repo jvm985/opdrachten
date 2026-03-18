@@ -3,9 +3,15 @@ import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
+import { execSync } from 'child_process';
 import { randomUUID } from 'crypto';
 import { db, initDb } from './db';
 import { OAuth2Client } from 'google-auth-library';
+import multer from 'multer';
+import * as XLSX from 'xlsx';
+
+const upload = multer({ dest: 'uploads/' });
 
 export const app = express();
 app.use(cors({ origin: true, credentials: true }));
@@ -40,11 +46,7 @@ app.post('/api/auth/google', async (req, res) => {
     let refresh_token: string | undefined;
     
     if (code) {
-      // Exchange code for tokens (Classroom sync)
-      const response = await client.getToken({
-        code,
-        redirect_uri: 'postmessage'
-      });
+      const response = await client.getToken({ code, redirect_uri: 'postmessage' });
       const tokens = response.tokens;
       const ticket = await client.verifyIdToken({
         idToken: tokens.id_token!,
@@ -65,23 +67,15 @@ app.post('/api/auth/google', async (req, res) => {
     }
 
     if (!email) return res.status(401).json({ error: 'Fout bij verificatie' });
-
-    if (!email.endsWith('@atheneumkapellen.be')) {
-      return res.status(403).json({ error: 'Alleen school-accounts toegestaan.' });
-    }
+    if (!email.endsWith('@atheneumkapellen.be')) return res.status(403).json({ error: 'Alleen school-accounts toegestaan.' });
 
     if (role === 'teacher') {
       db.get('SELECT * FROM users WHERE email = ? AND role = "teacher"', [email], (err, user: any) => {
         if (err || !user) return res.status(404).json({ error: 'Geen docent-account gevonden.' });
-        
-        if (refresh_token) {
-          db.run('UPDATE users SET google_refresh_token = ? WHERE id = ?', [refresh_token, user.id]);
-        }
-        
+        if (refresh_token) db.run('UPDATE users SET google_refresh_token = ? WHERE id = ?', [refresh_token, user.id]);
         res.json({ id: user.id, email: user.email, name: user.name, role: 'teacher', hasClassroom: !!(user.google_refresh_token || refresh_token) });
       });
     } else {
-      // ... student logic remains same ...
       db.get('SELECT * FROM students WHERE email = ?', [email], (err, student: any) => {
         if (student) {
           res.json({ id: student.id, name: student.name, klas: student.klas, photo_url: student.photo_url, role: 'student' });
@@ -130,6 +124,7 @@ app.post('/api/exams', (req, res) => {
     }
   );
 });
+
 app.put('/api/exams/:id', (req, res) => {
   const { title, questions, labels, type, isGraded, requireFullscreen, detectTabSwitch, isShared } = req.body;
   db.run(
@@ -167,54 +162,239 @@ app.get('/api/teacher/exams', (req, res) => {
   });
 });
 
-app.get('/api/teacher/trashed-exams', (req, res) => {
-  const { teacherId } = req.query;
-  db.all(`
-    SELECT e.*, 
-    (SELECT COUNT(*) FROM submissions WHERE exam_id = e.id) as submission_count
-    FROM exams e 
-    WHERE e.teacher_id = ? AND e.is_deleted = 1
-    ORDER BY e.created_at DESC`, [teacherId], (err, rows: any[]) => {
-    const result = (rows || []).map(r => ({ 
-      ...r, questions: JSON.parse(r.questions),
-      labels: r.labels ? JSON.parse(r.labels) : [],
-      isGraded: !!r.is_graded,
-      requireFullscreen: !!r.require_fullscreen,
-      detectTabSwitch: !!r.detect_tab_switch,
-      isShared: !!r.is_shared,
-      isDeleted: !!r.is_deleted,
-      submissionCount: r.submission_count,
-      hasSubmissions: r.submission_count > 0
-    }));
-    res.json(result);
-  });
-});
-
-app.post('/api/exams/:id/restore', (req, res) => {
-  db.run('UPDATE exams SET is_deleted = 0 WHERE id = ?', [req.params.id], (err) => {
-    if (err) return res.status(500).json({ error: 'DB Error' });
-    res.json({ success: true });
-  });
-});
-
-app.delete('/api/exams/:id/permanent', (req, res) => {
-  db.run('DELETE FROM exams WHERE id = ?', [req.params.id], (err) => {
-    if (err) return res.status(500).json({ error: 'DB Error' });
-    res.json({ success: true });
-  });
-});
-
-app.delete('/api/exams/:id', (req, res) => {
-  db.run('UPDATE exams SET is_deleted = 1 WHERE id = ?', [req.params.id], (err) => {
-    if (err) return res.status(500).json({ error: 'DB Error' });
-    res.json({ success: true });
-  });
-});
-
 app.get('/api/admin/teachers', (req, res) => {
   db.all('SELECT id, name, email FROM users WHERE role = "teacher" ORDER BY name', [], (err, rows) => {
     res.json(rows || []);
   });
+});
+
+app.get('/api/admin/students', (req, res) => {
+  db.all('SELECT * FROM students ORDER BY klas, name', [], (err, rows) => {
+    res.json(rows || []);
+  });
+});
+
+app.post('/api/admin/students', (req, res) => {
+  const { name, klas, email, photo_url } = req.body;
+  db.run('INSERT INTO students (name, klas, email, photo_url) VALUES (?, ?, ?, ?)', [name, klas, email, photo_url], function(err) {
+    if (err) return res.status(500).json({ error: 'DB Error' });
+    res.json({ id: this.lastID, name, klas, email, photo_url });
+  });
+});
+
+app.put('/api/admin/students/:id', (req, res) => {
+  const { name, klas, email, photo_url } = req.body;
+  db.run('UPDATE students SET name = ?, klas = ?, email = ?, photo_url = ? WHERE id = ?', [name, klas, email, photo_url, req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: 'DB Error' });
+    res.json({ success: true });
+  });
+});
+
+app.delete('/api/admin/students/clear', (req, res) => {
+  db.run('DELETE FROM students; DELETE FROM sqlite_sequence WHERE name="students";', (err) => {
+    if (err) return res.status(500).json({ error: 'DB Error' });
+    res.json({ success: true });
+  });
+});
+
+app.delete('/api/admin/students/:id', (req, res) => {
+  db.run('DELETE FROM students WHERE id = ?', [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: 'DB Error' });
+    res.json({ success: true });
+  });
+});
+
+app.post('/api/admin/import-students-xlsx', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Geen bestand geüpload' });
+  try {
+    const workbook = XLSX.readFile(req.file.path);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const rawData: any[] = XLSX.utils.sheet_to_json(worksheet);
+    let importedCount = 0;
+    for (const row of rawData) {
+      const keys = Object.keys(row);
+      const findVal = (target: string) => {
+        const key = keys.find(k => k.trim().toLowerCase() === target.toLowerCase());
+        return key ? row[key] : '';
+      };
+      const voornaam = (findVal('Voornaam') || '').toString().trim();
+      const achternaam = (findVal('Naam') || '').toString().trim();
+      const klas = (findVal('Klas- of groepsnaam') || '').toString().trim();
+      if (voornaam || achternaam) {
+        const fullName = `${voornaam} ${achternaam}`.trim();
+        await new Promise((resolve) => {
+          db.run('INSERT INTO students (name, first_name, last_name, klas) VALUES (?, ?, ?, ?)',
+            [fullName, voornaam, achternaam, klas], () => resolve(true));
+        });
+        importedCount++;
+      }
+    }
+    if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.json({ success: true, count: importedCount });
+  } catch (error) {
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ error: 'Import mislukt' });
+  }
+});
+
+app.post('/api/admin/import-photos-pdf', upload.single('pdf'), async (req, res) => {
+  console.log('--- 📥 PDF UPLOAD VOOR FOTO KOPPELING ---');
+  if (!req.file) return res.status(400).json({ error: 'Geen bestand geüpload' });
+
+  const filePath = req.file.path;
+  const photoSourceDir = path.resolve(__dirname, 'temp_photos_link');
+  const photoDestDir = path.resolve(__dirname, '../public/photos');
+
+  if (!fs.existsSync(photoSourceDir)) fs.mkdirSync(photoSourceDir, { recursive: true });
+  if (!fs.existsSync(photoDestDir)) fs.mkdirSync(photoDestDir, { recursive: true });
+
+  try {
+    fs.readdirSync(photoSourceDir).forEach(f => fs.unlinkSync(path.join(photoSourceDir, f)));
+
+    // 1. Extraheer XML + Images via pdftohtml
+    // pdftohtml genereert alles in de temp map
+    execSync(`pdftohtml -xml -nodrm "${filePath}" "${path.join(photoSourceDir, 'layout.xml')}"`);
+    
+    const xmlContent = fs.readFileSync(path.join(photoSourceDir, 'layout.xml'), 'utf8');
+    const students: any[] = await new Promise((resolve) => {
+      db.all('SELECT id, name FROM students', [], (err, rows) => resolve(rows || []));
+    });
+
+    const pageMatches = xmlContent.split('<page');
+    let linkedCount = 0;
+
+    for (let pIdx = 1; pIdx < pageMatches.length; pIdx++) {
+      const page = pageMatches[pIdx];
+      
+      // Zoek alle namen op deze pagina
+      const textRegex = /top="(\d+)" left="(\d+)"[^>]*>(.*?)<\/text>/g;
+      const namesOnPage: { name: string, top: number, left: number }[] = [];
+      let m;
+      while ((m = textRegex.exec(page)) !== null) {
+        const textValue = m[3].replace(/<[^>]*>/g, '').trim();
+        if (textValue.length > 3 && !['Klaslijst', 'Afdrukdatum', 'SMARTSCHOOL'].some(s => textValue.includes(s))) {
+          const pdfWords = textValue.toLowerCase().replace(/'/g, '').split(/\s+/).filter(w => w.length > 1);
+          const matchInDb = students.find(s => {
+            const dbName = (s.name || '').toLowerCase().replace(/'/g, '');
+            return pdfWords.every(word => dbName.includes(word));
+          });
+          if (matchInDb) namesOnPage.push({ name: textValue, top: parseInt(m[1]), left: parseInt(m[2]) });
+        }
+      }
+
+      // Zoek alle images op deze pagina
+      const imgRegex = /<image top="(\d+)" left="(\d+)"[^>]*src="(.*?)"\/>/g;
+      const imgsOnPage: { top: number, left: number, file: string }[] = [];
+      while ((m = imgRegex.exec(page)) !== null) {
+        // BELANGRIJK: Pak alleen de bestandsnaam uit het 'src' attribuut
+        const fileName = path.basename(m[3]);
+        imgsOnPage.push({ top: parseInt(m[1]), left: parseInt(m[2]), file: fileName });
+      }
+
+      console.log(`Pagina ${pIdx}: ${namesOnPage.length} namen, ${imgsOnPage.length} images.`);
+
+      for (const nameObj of namesOnPage) {
+        // MATCHING LOGICA: Zoek de image die het dichtst bij de naam staat
+        const closestImg = imgsOnPage.find(img => {
+          const xDiff = Math.abs(nameObj.left - img.left); 
+          const yDiff = nameObj.top - img.top;
+          // De foto staat linksboven de naam
+          // X-marge is ruim (150px), Y-marge ook (250px)
+          return xDiff < 150 && yDiff > 50 && yDiff < 250;
+        });
+
+        if (closestImg) {
+          const sourcePath = path.join(photoSourceDir, closestImg.file);
+          if (fs.existsSync(sourcePath)) {
+            const jpgName = `linked_${Date.now()}_${nameObj.name.replace(/\s+/g, '_')}.jpg`;
+            const destPath = path.join(photoDestDir, jpgName);
+            
+            fs.copyFileSync(sourcePath, destPath);
+
+            const pdfWords = nameObj.name.toLowerCase().replace(/'/g, '').split(/\s+/).filter(w => w.length > 1);
+            const match = students.find(s => {
+              const dbName = (s.name || '').toLowerCase().replace(/'/g, '');
+              return pdfWords.every(word => dbName.includes(word));
+            });
+
+            if (match) {
+              await new Promise((resolve) => {
+                db.run('UPDATE students SET photo_url = ? WHERE id = ?', [`/photos/${jpgName}`, match.id], () => resolve(true));
+              });
+              linkedCount++;
+              console.log(`✅ MATCH: ${nameObj.name} (X:${nameObj.left},Y:${nameObj.top}) -> ${closestImg.file} (X:${closestImg.left},Y:${closestImg.top})`);
+            }
+          }
+        } else {
+          console.log(`❌ GEEN FOTO gevonden voor: ${nameObj.name} bij X:${nameObj.left}, Y:${nameObj.top}`);
+        }
+      }
+    }
+
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    res.json({ success: true, count: linkedCount });
+  } catch (error) {
+    console.error('❌ PDF Link Fout:', error);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    res.status(500).json({ error: 'Koppelen mislukt' });
+  }
+});
+
+app.post('/api/admin/import-students-pdf', upload.single('pdf'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Geen bestand geüpload' });
+  const filePath = req.file.path;
+  const photoSourceDir = path.resolve(__dirname, 'temp_photos_upload');
+  const photoDestDir = path.resolve(__dirname, '../public/photos');
+  if (!fs.existsSync(photoSourceDir)) fs.mkdirSync(photoSourceDir, { recursive: true });
+  if (!fs.existsSync(photoDestDir)) fs.mkdirSync(photoDestDir, { recursive: true });
+  try {
+    fs.readdirSync(photoSourceDir).forEach(f => fs.unlinkSync(path.join(photoSourceDir, f)));
+    execSync(`pdfimages -j "${filePath}" "${path.join(photoSourceDir, 'img')}"`);
+    const textPath = path.join(photoSourceDir, 'list.txt');
+    execSync(`pdftotext -layout "${filePath}" "${textPath}"`);
+    const text = fs.readFileSync(textPath, 'utf8');
+    const pages = text.split('\f');
+    let ppmCounter = 0;
+    let globalPhotoCounter = Date.now();
+    let importedCount = 0;
+    for (const page of pages) {
+      const lines = page.split('\n');
+      let currentKlas = '';
+      const klasMatch = page.match(/Klaslijst \(([^)]+)\)/);
+      if (klasMatch) currentKlas = klasMatch[1];
+      if (!currentKlas) continue;
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.includes('Klaslijst') || trimmed.includes('Afdrukdatum') || trimmed.includes('SMARTSCHOOL') || trimmed === '1') continue;
+        const names = trimmed.split(/\s{2,}/).map(n => n.trim()).filter(n => n.length > 2);
+        for (const name of names) {
+          const ppmFile = path.join(photoSourceDir, `img-${String(ppmCounter * 2).padStart(3, '0')}.ppm`);
+          const jpgName = `student_upload_${globalPhotoCounter}.jpg`;
+          const destPath = path.join(photoDestDir, jpgName);
+          let photoUrl = null;
+          if (fs.existsSync(ppmFile)) {
+            try {
+              execSync(`magick convert "${ppmFile}" "${destPath}"`);
+              photoUrl = `/photos/${jpgName}`;
+            } catch (err) {}
+          } else {
+            const jpgFile = path.join(photoSourceDir, `img-${String(ppmCounter * 2).padStart(3, '0')}.jpg`);
+            if (fs.existsSync(jpgFile)) {
+               fs.copyFileSync(jpgFile, destPath);
+               photoUrl = `/photos/${jpgName}`;
+            }
+          }
+          db.run('INSERT INTO students (name, klas, photo_url) VALUES (?, ?, ?)', [name, currentKlas, photoUrl]);
+          ppmCounter++;
+          globalPhotoCounter++;
+          importedCount++;
+        }
+      }
+    }
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    res.json({ success: true, count: importedCount });
+  } catch (error) { res.status(500).json({ error: 'Import mislukt' }); }
 });
 
 app.get('/api/admin/all-exams', (req, res) => {
@@ -237,14 +417,6 @@ app.get('/api/admin/all-exams', (req, res) => {
       teacherEmail: r.teacher_email
     }));
     res.json(result);
-  });
-});
-
-app.put('/api/admin/exams/:id/reassign', (req, res) => {
-  const { teacherId } = req.body;
-  db.run('UPDATE exams SET teacher_id = ? WHERE id = ?', [teacherId, req.params.id], (err) => {
-    if (err) return res.status(500).json({ error: 'DB Error' });
-    res.json({ success: true });
   });
 });
 
@@ -356,42 +528,31 @@ app.post('/api/submissions', (req, res) => {
     [randomUUID(), examId, name, klas, JSON.stringify(answers || {})],
     (err) => {
       if (err) return res.status(500).json({ error: 'DB Error' });
-      
-      // Breng live-view op de hoogte (per examen)
       db.get('SELECT exam_key FROM exams WHERE id = ?', [examId], (err, row: any) => {
-        if (!err && row) {
-          io.to(`teacher_${row.exam_key}`).emit('student_finished', { name });
-        }
+        if (!err && row) io.to(`teacher_${row.exam_key}`).emit('student_finished', { name });
       });
-
-      // Breng dashboard op de hoogte (globaal voor tellers)
       io.emit('submission_received', { examId });
-      
       res.json({ success: true });
     }
   );
 });
 
-// --- Socket ---
 io.on('connection', (socket) => {
   socket.on('teacher_join', (examKey) => {
     socket.join(`teacher_${examKey}`);
     const studentsInExam = Array.from(activeStudents.values()).filter(s => s.examKey === examKey);
     socket.emit('current_students', studentsInExam);
   });
-
   socket.on('session_close', (examKey) => {
     for (const [id, s] of activeStudents.entries()) if (s.examKey === examKey) activeStudents.delete(id);
     io.to(`exam_${examKey}`).emit('session_closed');
   });
-
   socket.on('student_join', ({ examKey, name, klas, photo_url }) => {
     const studentData = { socketId: socket.id, name, klas, photo_url, examKey, status: 'active' };
     activeStudents.set(socket.id, studentData);
     socket.join(`exam_${examKey}`);
     io.to(`teacher_${examKey}`).emit('student_joined', studentData);
   });
-
   socket.on('cheat_alert', ({ reason }) => {
     const s = activeStudents.get(socket.id);
     if (s) {
@@ -399,7 +560,6 @@ io.on('connection', (socket) => {
       io.to(`teacher_${s.examKey}`).emit('student_cheated', { socketId: socket.id, name: s.name, reason });
     }
   });
-
   socket.on('disconnect', () => {
     const s = activeStudents.get(socket.id);
     if (s) {
@@ -409,10 +569,14 @@ io.on('connection', (socket) => {
   });
 });
 
-initDb().then(() => {
-  if (process.env.NODE_ENV !== 'test') {
-    server.listen(3001, '0.0.0.0', () => {
-        console.log('\n🚀 SERVER READY\n🔗 http://localhost:3001\n');
-    });
-  }
-});
+console.log(`🌍 NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+
+initDb()
+  .then(() => console.log('✅ Database initialization finished.'))
+  .catch(err => console.error('❌ Database initialization failed:', err));
+
+if (process.env.NODE_ENV !== 'test') {
+  server.listen(3001, '0.0.0.0', () => {
+    console.log('\n🚀 SERVER READY\n🔗 http://localhost:3001\n');
+  });
+}

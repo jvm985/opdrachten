@@ -5,11 +5,12 @@ export interface SubQuestion { id: string; text: string; points: number; correct
 
 export interface Question {
   id: string;
-  type: 'open' | 'multiple-choice' | 'true-false' | 'map' | 'definitions' | 'matching' | 'ordering' | 'image-analysis' | 'timeline' | 'table-fill';
+  type: 'open' | 'multiple-choice' | 'true-false' | 'map' | 'definitions' | 'matching' | 'ordering' | 'image-analysis' | 'timeline' | 'table-fill' | 'fill-blanks';
   text: string;
   points: number;
   options?: string[];
   correctAnswer: string;
+  correctExplanation?: string;
   image?: string;
   locations?: Location[];
   pairs?: DefinitionPair[];

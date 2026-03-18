@@ -30,14 +30,32 @@ const QuestionRenderer = ({ q, answers, setAnswers, handleDragStart, handleDropM
       {q.type === 'true-false' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div style={{ display: 'flex', gap: '16px' }}>
-            {['Waar', 'Onwaar'].map(opt => (
-              <button key={opt} className={`btn ${answers[q.id]?.value === opt ? '' : 'btn-secondary'}`} style={{ flex: 1, padding: '24px', fontSize: '18px' }} onClick={() => setAnswers((prev: any) => ({ ...prev, [q.id]: { ...prev[q.id], value: opt } }))}>{opt}</button>
-            ))}
+            <button 
+              className={`btn ${answers[q.id]?.value === 'Waar' ? '' : 'btn-secondary'}`} 
+              style={{ flex: 1, height: '64px', fontSize: '18px', fontWeight: '700' }} 
+              onClick={() => setAnswers((prev: any) => ({ ...prev, [q.id]: { value: 'Waar', explanation: '' } }))}
+            >
+              Waar
+            </button>
+            <button 
+              className={`btn ${answers[q.id]?.value === 'Onwaar' ? '' : 'btn-secondary'}`} 
+              style={{ flex: 1, height: '64px', fontSize: '18px', fontWeight: '700', background: answers[q.id]?.value === 'Onwaar' ? 'var(--system-error)' : '' }} 
+              onClick={() => setAnswers((prev: any) => ({ ...prev, [q.id]: { value: 'Onwaar', explanation: prev[q.id]?.explanation || '' } }))}
+            >
+              Onwaar
+            </button>
           </div>
           {q.explainIfFalse && answers[q.id]?.value === 'Onwaar' && (
             <div className="animate-up">
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--system-secondary-text)', marginBottom: '8px' }}>LEGE UIT WAAROM DIT ONWAAR IS:</label>
-              <textarea className="input" rows={3} placeholder="Jouw uitleg..." value={answers[q.id]?.explanation || ''} onChange={e => setAnswers((prev: any) => ({ ...prev, [q.id]: { ...prev[q.id], explanation: e.target.value } }))} style={{ fontSize: '17px' }} />
+              <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: 'var(--system-text)', marginBottom: '12px' }}>MOTIVEER JE ANTWOORD:</label>
+              <textarea 
+                className="input" 
+                rows={4} 
+                placeholder="Leg uit waarom deze stelling onwaar is..." 
+                value={answers[q.id]?.explanation || ''} 
+                onChange={e => setAnswers((prev: any) => ({ ...prev, [q.id]: { ...prev[q.id], explanation: e.target.value } }))} 
+                style={{ fontSize: '17px', background: 'white', lineHeight: '1.5' }} 
+              />
             </div>
           )}
         </div>
@@ -141,6 +159,43 @@ const QuestionRenderer = ({ q, answers, setAnswers, handleDragStart, handleDropM
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {q.type === 'fill-blanks' && (
+        <div style={{ background: 'white', padding: '40px', borderRadius: '24px', border: '1px solid var(--system-border)', lineHeight: '2.5', fontSize: '18px' }}>
+          {q.text.split(/(\{.*?\})/).map((part: string, i: number) => {
+            if (part.startsWith('{') && part.endsWith('}')) {
+              const blankId = i; // Gebruik index als unieke ID voor dit gat
+              const expectedValue = part.slice(1, -1);
+              const currentValue = answers[q.id]?.[blankId] || '';
+              
+              return (
+                <input 
+                  key={blankId}
+                  className="input"
+                  style={{ 
+                    display: 'inline-block', 
+                    width: `${Math.max(expectedValue.length * 12, 60)}px`, 
+                    margin: '0 8px', 
+                    padding: '4px 12px', 
+                    height: '36px', 
+                    fontSize: '17px', 
+                    textAlign: 'center', 
+                    borderBottom: '2px solid var(--system-blue)', 
+                    borderRadius: '8px',
+                    background: '#f0f7ff'
+                  }}
+                  value={currentValue}
+                  onChange={(e) => setAnswers((prev: any) => ({
+                    ...prev,
+                    [q.id]: { ...(prev[q.id] || {}), [blankId]: e.target.value }
+                  }))}
+                />
+              );
+            }
+            return <span key={i}>{part}</span>;
+          })}
         </div>
       )}
 
@@ -553,9 +608,6 @@ export default function StudentExam() {
             <div style={{ maxWidth: '1000px', margin: '60px auto', padding: '0 40px' }}>
               <header className="card" style={{ marginBottom: '40px', padding: '32px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: 'none', boxShadow: 'var(--shadow-md)' }}>
                 <div>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
-                    <span className="badge" style={{ background: 'var(--system-blue-light)', color: 'var(--system-blue)', fontWeight: '800' }}>{exam.type || 'examen'}</span>
-                  </div>
                   <h1 style={{ margin: 0, fontSize: '32px', letterSpacing: '-0.04em' }}>{exam.title}</h1>
                   <p style={{ margin: '8px 0 0', color: 'var(--system-secondary-text)', fontWeight: '500' }}>Kandidaat: <strong style={{ color: 'var(--system-text)' }}>{name}</strong></p>
                 </div>

@@ -42,6 +42,7 @@ else
   echo "📍 Seeding container: $CONTAINER_NAME"
   sudo docker exec "$CONTAINER_NAME" npm run seed
   sudo docker exec "$CONTAINER_NAME" npm run create-demo
+  sudo docker exec "$CONTAINER_NAME" npm run import-students
 fi
 
 echo "✅ Deployment finished successfully!"

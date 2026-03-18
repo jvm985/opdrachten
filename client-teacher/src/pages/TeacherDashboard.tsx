@@ -39,6 +39,7 @@ export default function TeacherDashboard() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isSavingToBank, setIsSavingToBank] = useState<string | null>(null);
+  const [showEditMenu, setShowEditMenu] = useState(false);
 
   const [selectedExamForLive, setSelectedExamForLive] = useState<Exam | null>(null);
 
@@ -60,7 +61,10 @@ export default function TeacherDashboard() {
   };
 
   useEffect(() => {
-    const handleClickOutside = () => setOpenMenuId(null);
+    const handleClickOutside = () => {
+      setOpenMenuId(null);
+      setShowEditMenu(false);
+    };
     window.addEventListener('click', handleClickOutside);
     return () => window.removeEventListener('click', handleClickOutside);
   }, []);
@@ -378,56 +382,154 @@ export default function TeacherDashboard() {
                   <LayoutList size={18}/>
                 </button>
               </div>
-              <button className="btn btn-secondary" onClick={fetchBank} style={{ borderRadius: '10px', padding: '10px' }} title="Vraagbank openen">
-                <Database size={20}/>
-              </button>
-              <button className="btn btn-secondary" onClick={handlePreview} disabled={isLoading} style={{ borderRadius: '10px', padding: '10px' }} title="Voorvertoning (Preview)">
-                <Eye size={20}/>
-              </button>
+
+              <div style={{ position: 'relative' }}>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={(e) => { e.stopPropagation(); setShowEditMenu(!showEditMenu); }}
+                  style={{ borderRadius: '10px', padding: '10px' }}
+                >
+                  <MoreVertical size={20}/>
+                </button>
+                
+                {showEditMenu && (
+                  <div className="glass animate-up" style={{ position: 'absolute', top: '42px', right: 0, width: '280px', background: 'white', borderRadius: '14px', boxShadow: 'var(--shadow-lg)', border: '1px solid rgba(0,0,0,0.05)', zIndex: 100, padding: '8px' }}>
+                    <button style={dropdownItemStyle} onClick={fetchBank}>
+                      <Database size={16}/> Vraagbank openen
+                    </button>
+                    <button style={dropdownItemStyle} onClick={handlePreview} disabled={isLoading}>
+                      <Eye size={16}/> Voorvertoning (Preview)
+                    </button>
+                    
+                    <div style={{ height: '1px', background: '#f5f5f7', margin: '8px 0' }} />
+                    
+                    <div style={{ padding: '8px 12px' }}>
+                      <p style={{ fontSize: '10px', fontWeight: '800', color: 'var(--system-secondary-text)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Instellingen</p>
+                      
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', marginBottom: '12px' }} onClick={(e) => e.stopPropagation()}>
+                        <input 
+                          type="checkbox" 
+                          checked={isGraded} 
+                          onChange={e => setIsGraded(e.target.checked)} 
+                          style={{ width: '18px', height: '18px', cursor: 'pointer' }} 
+                        />
+                        <span style={{ fontSize: '14px', fontWeight: '600' }}>Op punten berekenen</span>
+                      </label>
+                      
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={(e) => e.stopPropagation()}>
+                        <input 
+                          type="checkbox" 
+                          checked={isShared} 
+                          onChange={e => setIsShared(e.target.checked)} 
+                          style={{ width: '18px', height: '18px', cursor: 'pointer' }} 
+                        />
+                        <span style={{ fontSize: '14px', fontWeight: '600' }}>Delen met collega's</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <button className="btn" onClick={() => handleSaveExam()} disabled={isLoading} style={{ borderRadius: '10px', padding: '10px 16px' }} title="Toets opslaan">
-                <Save size={20}/>
+                <Save size={20}/> Opslaan
               </button>
             </div>
           </header>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '24px', marginBottom: '40px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#86868b', marginBottom: '8px', textTransform: 'uppercase' }}>Type</label>
-              <select className="input" value={type} onChange={e => setType(e.target.value as any)}><option value="taak">Taak</option><option value="toets">Toets</option><option value="examen">Examen</option><option value="formulier">Formulier</option></select>
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#86868b', marginBottom: '8px', textTransform: 'uppercase' }}>Punten</label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', padding: '8px 16px', borderRadius: '10px', border: '1px solid #d2d2d7', cursor: 'pointer', fontSize: '14px' }}>
-                <input type="checkbox" checked={isGraded} onChange={e => setIsGraded(e.target.checked)} /><span>Op punten</span>
-              </label>
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#86868b', marginBottom: '8px', textTransform: 'uppercase' }}>Delen</label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', padding: '8px 16px', borderRadius: '10px', border: '1px solid #d2d2d7', cursor: 'pointer', fontSize: '14px' }}>
-                <input type="checkbox" checked={isShared} onChange={e => setIsShared(e.target.checked)} /><span>Gedeeld</span>
-              </label>
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#86868b', marginBottom: '8px', textTransform: 'uppercase' }}>Labels</label>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <input 
-                  className="input" 
-                  placeholder="Nieuw label..." 
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      const val = (e.target as HTMLInputElement).value.trim();
-                      if (val && !labels.includes(val)) setLabels([...labels, val]);
-                      (e.target as HTMLInputElement).value = '';
-                    }
-                  }}
-                />
+          
+          <div style={{ marginBottom: '40px' }}>
+            <div style={{ background: 'white', padding: '24px', borderRadius: '20px', border: '1px solid var(--system-border-light)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--system-secondary-text)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Labels & Categorieën</label>
+                <div style={{ position: 'relative' }}>
+                  <input 
+                    className="input" 
+                    placeholder="Typ om nieuw label toe te voegen..." 
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const val = (e.target as HTMLInputElement).value.trim();
+                        if (val && !labels.includes(val)) setLabels([...labels, val]);
+                        (e.target as HTMLInputElement).value = '';
+                      }
+                    }}
+                    style={{ background: '#f5f5f7', border: 'none' }}
+                  />
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '8px' }}>
-                {labels.map(l => (
-                  <span key={l} className="badge" style={{ background: '#f5f5f7', padding: '4px 8px', borderRadius: '6px', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    {l} <X size={10} style={{ cursor: 'pointer' }} onClick={() => setLabels(labels.filter(x => x !== l))} />
-                  </span>
-                ))}
-              </div>
+
+              {/* Actieve Labels */}
+              {labels.length > 0 && (
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', padding: '4px 0' }}>
+                  {labels.map(l => (
+                    <span key={l} className="animate-scale" style={{ 
+                      background: 'var(--system-blue)', 
+                      color: 'white', 
+                      padding: '6px 12px', 
+                      borderRadius: '10px', 
+                      fontSize: '13px', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '8px', 
+                      fontWeight: '600',
+                      boxShadow: '0 4px 12px rgba(0, 102, 204, 0.2)'
+                    }}>
+                      {l} 
+                      <X 
+                        size={14} 
+                        style={{ cursor: 'pointer', opacity: 0.8 }} 
+                        onClick={() => setLabels(labels.filter(x => x !== l))} 
+                      />
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Bestaande labels suggesties */}
+              {(() => {
+                const allExistingLabels = Array.from(new Set([
+                  ...exams.flatMap(e => e.labels || []),
+                  ...sharedExams.flatMap(e => e.labels || []),
+                  ...allExams.flatMap(e => e.labels || [])
+                ])).filter(l => !labels.includes(l)).sort();
+
+                if (allExistingLabels.length > 0) {
+                  return (
+                    <div style={{ marginTop: '4px', paddingTop: '16px', borderTop: '1px solid #f5f5f7' }}>
+                      <p style={{ fontSize: '11px', fontWeight: '700', color: 'var(--system-secondary-text)', marginBottom: '10px', textTransform: 'uppercase' }}>Suggesties uit je bibliotheek:</p>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {allExistingLabels.map(l => (
+                          <button 
+                            key={l} 
+                            onClick={() => setLabels([...labels, l])}
+                            style={{ 
+                              background: '#f5f5f7', 
+                              border: 'none', 
+                              padding: '6px 14px', 
+                              borderRadius: '10px', 
+                              fontSize: '12px', 
+                              cursor: 'pointer', 
+                              color: 'var(--system-text)', 
+                              fontWeight: '500',
+                              transition: 'var(--transition-fast)' 
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = 'var(--system-tertiary-bg)';
+                              e.currentTarget.style.transform = 'translateY(-1px)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = '#f5f5f7';
+                              e.currentTarget.style.transform = 'translateY(0)';
+                            }}
+                          >
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
           </div>
           
@@ -542,13 +644,36 @@ export default function TeacherDashboard() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className="badge" style={{ background: 'var(--system-blue-light)', color: 'var(--system-blue)' }}>{exam.type}</span>
                           {exam.isShared && isOwn && <Share2 size={12} color="var(--system-blue)" />}
                         </div>
                         <h3 style={{ margin: '4px 0', fontSize: '20px', lineHeight: '1.2' }}>{exam.title}</h3>
                         {showTeacherInfo && (
-                          <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <p style={{ fontSize: '13px', color: 'var(--system-blue)', fontWeight: '700', margin: '2px 0' }}>{exam.teacherName}</p>
+                          <div style={{ display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '240px', overflow: 'hidden' }}>
+                            <p style={{ 
+                              fontSize: '13px', 
+                              color: 'var(--system-blue)', 
+                              fontWeight: '700', 
+                              margin: '2px 0',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              display: 'block'
+                            }} title={exam.teacherName}>
+                              {exam.teacherName}
+                            </p>
+                            {activeTab === 'admin' && exam.teacherEmail && (
+                              <p style={{ 
+                                fontSize: '11px', 
+                                color: 'var(--system-secondary-text)', 
+                                margin: '0 0 8px',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                display: 'block'
+                              }} title={exam.teacherEmail}>
+                                {exam.teacherEmail}
+                              </p>
+                            )}
                             {activeTab === 'admin' && (
                               <select 
                                 className="input" 

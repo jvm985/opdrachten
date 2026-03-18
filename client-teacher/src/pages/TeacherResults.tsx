@@ -103,6 +103,22 @@ export default function TeacherResults() {
         }
         return parseFloat(((totalCorrect / q.tableConfig.interactiveCells.length) * q.points).toFixed(2));
       }
+      case 'fill-blanks': {
+        if (!q.text || !answer) return 0;
+        const parts = q.text.split(/(\{.*?\})/);
+        let correctCount = 0;
+        let totalBlanks = 0;
+        parts.forEach((part, i) => {
+          if (part.startsWith('{') && part.endsWith('}')) {
+            totalBlanks++;
+            const expected = part.slice(1, -1).toLowerCase().trim();
+            const studentVal = (answer[i] || '').toString().toLowerCase().trim();
+            if (studentVal === expected) correctCount++;
+          }
+        });
+        if (totalBlanks === 0) return 0;
+        return parseFloat(((correctCount / totalBlanks) * q.points).toFixed(2));
+      }
       default: return null;
     }
   };
@@ -268,7 +284,20 @@ export default function TeacherResults() {
     }
     if (q.type === 'true-false') {
       const val = answer?.value || answer;
-      return <div style={{ fontSize: '18px', fontWeight: '700', color: val === q.correctAnswer ? '#22c55e' : '#ef4444' }}>{val || 'Niet ingevuld'}</div>;
+      const explanation = answer?.explanation;
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ fontSize: '18px', fontWeight: '700', color: val === q.correctAnswer ? '#22c55e' : '#ef4444' }}>
+            {val || 'Niet ingevuld'}
+          </div>
+          {explanation && (
+            <div style={{ padding: '16px', background: 'white', borderRadius: '12px', border: '1px solid var(--system-border)', borderLeft: '4px solid var(--system-blue)' }}>
+              <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--system-secondary-text)', marginBottom: '4px', textTransform: 'uppercase' }}>Motivatie student:</div>
+              <div style={{ fontSize: '15px', lineHeight: '1.5' }}>{explanation}</div>
+            </div>
+          )}
+        </div>
+      );
     }
     if (q.type === 'table-fill') {
       return (
@@ -322,6 +351,41 @@ export default function TeacherResults() {
                 </div>
               </div>
             );
+          })}
+        </div>
+      );
+    }
+    if (q.type === 'fill-blanks') {
+      return (
+        <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--system-border)', lineHeight: '2', fontSize: '16px' }}>
+          {q.text.split(/(\{.*?\})/).map((part: string, i: number) => {
+            if (part.startsWith('{') && part.endsWith('}')) {
+              const expected = part.slice(1, -1);
+              const studentVal = (answer?.[i] || '').toString();
+              const isCorrect = studentVal.toLowerCase().trim() === expected.toLowerCase().trim();
+              
+              return (
+                <span key={i} style={{ 
+                  display: 'inline-block', 
+                  margin: '0 4px', 
+                  padding: '2px 8px', 
+                  borderRadius: '6px',
+                  background: studentVal === '' ? '#f5f5f7' : (isCorrect ? '#f0fdf4' : '#fff1f2'),
+                  border: '1px solid',
+                  borderColor: studentVal === '' ? '#d2d2d7' : (isCorrect ? '#22c55e' : '#ef4444'),
+                  color: isCorrect ? '#166534' : '#991b1b',
+                  fontWeight: '700'
+                }}>
+                  {studentVal || '...'}
+                  {!isCorrect && studentVal !== '' && (
+                    <span style={{ fontSize: '10px', color: 'var(--system-blue)', marginLeft: '6px', fontWeight: '500' }}>
+                      [{expected}]
+                    </span>
+                  )}
+                </span>
+              );
+            }
+            return <span key={i}>{part}</span>;
           })}
         </div>
       );
@@ -402,7 +466,6 @@ export default function TeacherResults() {
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             {showHeader && <span className="badge" style={{ background: '#f5f5f7', color: '#1d1d1f', border: 'none', fontWeight: '700' }}>{submission.student_name}</span>}
-            <span className="badge" style={{ background: 'var(--system-blue-light)', color: 'var(--system-blue)', border: 'none' }}>{q.type.toUpperCase()}</span>
           </div>
           {q.type !== 'image-analysis' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -469,6 +532,15 @@ export default function TeacherResults() {
                 </div>
               ) : q.type === 'image-analysis' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>{q.subQuestions?.map((sq, i) => <div key={sq.id} style={{ fontSize: '13px' }}><strong>{i + 1}. {sq.text}</strong>: <span style={{ color: '#0066cc' }}>{sq.correctAnswer || 'Geen'}</span></div>)}</div>
+              ) : q.type === 'true-false' ? (
+                <div>
+                  <div style={{ fontWeight: '700', color: 'var(--system-blue)' }}>{q.correctAnswer}</div>
+                  {q.correctAnswer === 'Onwaar' && q.correctExplanation && (
+                    <div style={{ marginTop: '8px', fontSize: '14px', fontStyle: 'italic', borderTop: '1px solid rgba(0,102,204,0.1)', paddingTop: '8px' }}>
+                      <strong>Modelantwoord:</strong> {q.correctExplanation}
+                    </div>
+                  )}
+                </div>
               ) : q.type === 'map' ? (
                 <div style={{ position: 'relative', width: '200px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #cce3ff' }}>
                   <img src={q.image} style={{ width: '100%', opacity: 0.5 }} />

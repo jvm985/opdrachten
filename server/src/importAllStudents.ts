@@ -3,7 +3,8 @@ import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
 
-const dbPath = path.resolve(__dirname, '../database.sqlite');
+// Use the database in the root folder
+const dbPath = path.resolve(__dirname, '../../database.sqlite');
 const db = new sqlite3.Database(dbPath);
 
 const listsDir = path.resolve(__dirname, '../../leerling_lijsten');
@@ -14,12 +15,17 @@ if (!fs.existsSync(photoSourceDir)) fs.mkdirSync(photoSourceDir, { recursive: tr
 if (!fs.existsSync(photoDestDir)) fs.mkdirSync(photoDestDir, { recursive: true });
 
 async function run() {
-  console.log('Clearing old data...');
-  db.serialize(() => {
-    db.run('DELETE FROM students');
-    // Reset autoincrement
-    db.run('DELETE FROM sqlite_sequence WHERE name="students"');
+  // Check if students already exist
+  const count: number = await new Promise((resolve) => {
+    db.get('SELECT COUNT(*) as count FROM students', (err, row: any) => resolve(row?.count || 0));
   });
+
+  if (count > 0) {
+    console.log(`ℹ️ There are already ${count} students in the database. Skipping import to prevent duplicates.`);
+    process.exit(0);
+  }
+
+  console.log('🌱 Starting student import from PDFs...');
 
   const files = fs.readdirSync(listsDir).filter(f => f.endsWith('.pdf'));
   console.log(`Found ${files.length} PDF files.`);
@@ -31,14 +37,27 @@ async function run() {
     const filePath = path.join(listsDir, file);
     
     // Clear temp dir
-    fs.readdirSync(photoSourceDir).forEach(f => fs.unlinkSync(path.join(photoSourceDir, f)));
+    fs.readdirSync(photoSourceDir).forEach(f => {
+        if (f !== '.gitkeep') fs.unlinkSync(path.join(photoSourceDir, f));
+    });
 
     // Extract images
-    execSync(`pdfimages -j "${filePath}" "${path.join(photoSourceDir, 'img')}"`);
+    try {
+        execSync(`pdfimages -j "${filePath}" "${path.join(photoSourceDir, 'img')}"`);
+    } catch (e) {
+        console.error(`Error extracting images from ${file}`);
+    }
     
     // Extract text
     const textPath = path.join(photoSourceDir, 'list.txt');
-    execSync(`pdftotext -layout "${filePath}" "${textPath}"`);
+    try {
+        execSync(`pdftotext -layout "${filePath}" "${textPath}"`);
+    } catch (e) {
+        console.error(`Error extracting text from ${file}`);
+        continue;
+    }
+    
+    if (!fs.existsSync(textPath)) continue;
     const text = fs.readFileSync(textPath, 'utf8');
 
     // Parse text
@@ -54,13 +73,10 @@ async function run() {
 
       if (!currentKlas) continue;
 
-      // Find names line. Names are typically on lines that don't contain "Klaslijst", "Afdrukdatum", "SMARTSCHOOL", etc.
-      // And they are separated by multiple spaces.
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed || trimmed.includes('Klaslijst') || trimmed.includes('Afdrukdatum') || trimmed.includes('SMARTSCHOOL') || trimmed === '1') continue;
 
-        // Split by 2 or more spaces to get names
         const names = trimmed.split(/\s{2,}/).map(n => n.trim()).filter(n => n.length > 2);
         
         for (const name of names) {
@@ -68,27 +84,27 @@ async function run() {
           const jpgName = `student_${globalPhotoCounter}.jpg`;
           const destPath = path.join(photoDestDir, jpgName);
 
+          let photoStored = false;
+
           if (fs.existsSync(ppmFile)) {
             try {
               execSync(`magick convert "${ppmFile}" "${destPath}"`);
-              const photoUrl = `/photos/${jpgName}`;
-              
-              db.run('INSERT INTO students (name, klas, photo_url) VALUES (?, ?, ?)', [name, currentKlas, photoUrl]);
-              console.log(`[${currentKlas}] Added: ${name}`);
+              photoStored = true;
             } catch (err) {
               console.error(`Error converting ${ppmFile}:`, err);
             }
           } else {
-            // Check for other image types if -j didn't work as expected
             const jpgFile = path.join(photoSourceDir, `img-${String(ppmCounter * 2).padStart(3, '0')}.jpg`);
             if (fs.existsSync(jpgFile)) {
                fs.copyFileSync(jpgFile, destPath);
-               db.run('INSERT INTO students (name, klas, photo_url) VALUES (?, ?, ?)', [name, currentKlas, `/photos/${jpgName}`]);
-               console.log(`[${currentKlas}] Added (JPG): ${name}`);
-            } else {
-               console.warn(`Photo not found for ${name} at index ${ppmCounter*2}`);
+               photoStored = true;
             }
           }
+
+          const photoUrl = photoStored ? `/photos/${jpgName}` : null;
+          db.run('INSERT INTO students (name, klas, photo_url) VALUES (?, ?, ?)', [name, currentKlas, photoUrl]);
+          console.log(`[${currentKlas}] Added: ${name}`);
+          
           ppmCounter++;
           globalPhotoCounter++;
         }
@@ -96,6 +112,10 @@ async function run() {
     }
   }
   console.log('Import complete.');
+  process.exit(0);
 }
 
-run();
+run().catch(err => {
+    console.error(err);
+    process.exit(1);
+});

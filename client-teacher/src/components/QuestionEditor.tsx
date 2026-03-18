@@ -67,7 +67,6 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
     const newData = [...(q.timelineData || [])];
     if (!newData[bucketIdx]) newData[bucketIdx] = [];
     newData[bucketIdx].push({ id: Math.random().toString(36).substr(2, 9), text: '' });
-    // Update punten op basis van totaal aantal events
     const totalEvents = newData.reduce((sum, b) => sum + b.length, 0);
     handleUpdateQuestion(q.id, { timelineData: newData, points: totalEvents });
   };
@@ -154,6 +153,12 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
               updates.tableData = q.tableData || [['Titel 1', 'Titel 2'], ['', '']];
               updates.tableConfig = q.tableConfig || { mode: 'type', interactiveCells: [] };
             }
+            if (newType === 'fill-blanks') {
+              if (!q.text || q.text.trim() === '' || q.text === 'Typ hier de tekst met {gaten}...') {
+                updates.text = 'Vul de ontbrekende woorden aan.';
+              }
+              updates.content = q.content || '';
+            }
             handleUpdateQuestion(q.id, updates);
           }} 
           disabled={hasSubmissions} 
@@ -161,7 +166,7 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
         >
           <option value="open">Open vraag</option><option value="multiple-choice">Meerkeuze</option><option value="true-false">Waar/Onwaar</option><option value="map">Blinde kaart</option>
           <option value="definitions">Definities</option><option value="matching">Paren</option><option value="ordering">Volgorde</option><option value="image-analysis">Afbeelding analyse</option>
-          <option value="timeline">Tijdlijn (Verbeterd)</option><option value="table-fill">Invultabel</option>
+          <option value="timeline">Tijdlijn (Verbeterd)</option><option value="table-fill">Invultabel</option><option value="fill-blanks">Gatentekst</option>
         </select>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <input className="input" type="number" value={q.points} onChange={e => handleUpdateQuestion(q.id, { points: parseInt(e.target.value) || 0 })} min={0} style={{ borderRadius: '10px', flex: 1 }} />
@@ -314,6 +319,36 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
       )}
 
       {q.type === 'open' && <input className="input" value={q.correctAnswer} onChange={e => handleUpdateQuestion(q.id, { correctAnswer: e.target.value })} placeholder="Modeloplossing..." style={{ borderRadius: '10px' }} />}
+      
+      {q.type === 'true-false' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', background: 'var(--system-secondary-bg)', padding: '24px', borderRadius: '20px' }}>
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <button className={`btn ${q.correctAnswer === 'Waar' ? '' : 'btn-secondary'}`} style={{ flex: 1, height: '48px' }} onClick={() => handleUpdateQuestion(q.id, { correctAnswer: 'Waar', correctExplanation: '' })}>Juist: Waar</button>
+            <button className={`btn ${q.correctAnswer === 'Onwaar' ? '' : 'btn-secondary'}`} style={{ flex: 1, height: '48px' }} onClick={() => handleUpdateQuestion(q.id, { correctAnswer: 'Onwaar' })}>Juist: Onwaar</button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '12px', background: 'white', borderRadius: '12px', border: '1px solid var(--system-border)' }}>
+              <input type="checkbox" checked={!!q.explainIfFalse} onChange={e => handleUpdateQuestion(q.id, { explainIfFalse: e.target.checked })} style={{ width: '20px', height: '20px' }} />
+              <span style={{ fontWeight: '600', fontSize: '15px' }}>Vraag om uitleg wanneer student "Onwaar" kiest</span>
+            </label>
+            
+            {q.explainIfFalse && q.correctAnswer === 'Onwaar' && (
+              <div className="animate-up">
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: 'var(--system-secondary-text)', marginBottom: '8px', textTransform: 'uppercase' }}>Modelantwoord (correcte uitleg):</label>
+                <textarea 
+                  className="input" 
+                  rows={3} 
+                  value={q.correctExplanation || ''} 
+                  onChange={e => handleUpdateQuestion(q.id, { correctExplanation: e.target.value })} 
+                  placeholder="Waarom is de stelling onwaar? (Dit helpt bij het verbeteren)"
+                  style={{ background: 'white', fontSize: '15px' }}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {q.type === 'multiple-choice' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {(q.options || ['']).map((opt: string, idx: number) => (
@@ -328,11 +363,7 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
           {!hasSubmissions && <button className="btn btn-secondary" onClick={() => handleUpdateQuestion(q.id, { options: [...(q.options || []), ''] })} style={{ alignSelf: 'flex-start' }}><Plus size={16}/> Optie</button>}
         </div>
       )}
-      {q.type === 'true-false' && (
-        <div style={{ display: 'flex', gap: '12px' }}>
-          {['Waar', 'Onwaar'].map(opt => <button key={opt} className={`btn ${q.correctAnswer === opt ? '' : 'btn-secondary'}`} style={{ flex: 1, padding: '16px' }} onClick={() => handleUpdateQuestion(q.id, { correctAnswer: opt })}>{opt}</button>)}
-        </div>
-      )}
+
       {(q.type === 'map' || q.type === 'image-analysis') && (
         <div>
           {!q.image ? (
@@ -374,7 +405,8 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
             </div>
           )}
         </div>
-      )}      {q.type === 'image-analysis' && (
+      )}
+      {q.type === 'image-analysis' && (
         <div style={{ marginTop: '24px' }}>
           {q.subQuestions?.map((sq: any, si: number) => (
             <div key={sq.id} style={{ marginBottom: '16px', padding: '16px', background: 'white', borderRadius: '12px', border: '1px solid var(--system-border)' }}>
@@ -460,6 +492,31 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
             </div>
           ))}
           {!hasSubmissions && <button className="btn btn-secondary" onClick={() => handleUpdateQuestion(q.id, { orderItems: [...(q.orderItems || []), ''] })} style={{ alignSelf: 'flex-start' }}><Plus size={16}/> Item</button>}
+        </div>
+      )}
+      {q.type === 'fill-blanks' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ padding: '16px', background: 'var(--system-blue-light)', borderRadius: '12px', color: 'var(--system-blue)', fontSize: '13px', fontWeight: '600' }}>
+            Typ hieronder de tekst en zet woorden die ingevuld moeten worden tussen accolades, bijvoorbeeld: Het is vandaag &#123;maandag&#125;.
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: 'var(--system-secondary-text)', marginBottom: '8px', textTransform: 'uppercase' }}>Tekst met gaten:</label>
+            <textarea 
+              className="input" 
+              rows={6} 
+              value={q.content || ''} 
+              onChange={e => {
+                const content = e.target.value;
+                const blanks = content.match(/\{([^}]+)\}/g) || [];
+                handleUpdateQuestion(q.id, { content, points: blanks.length });
+              }}
+              placeholder="Typ hier de tekst met {gaten}..."
+              style={{ fontSize: '16px', lineHeight: '1.6', background: 'white' }}
+            />
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--system-secondary-text)', fontWeight: '600' }}>
+            Aantal gedetecteerde gaten: <strong>{(q.content?.match(/\{([^}]+)\}/g) || []).length}</strong> (elk gat is 1 punt)
+          </div>
         </div>
       )}
     </div>

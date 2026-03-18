@@ -17,18 +17,20 @@ export const TopNav: React.FC<TopNavProps> = ({ isEditing, user }) => {
     }}>
       <div style={{ width: '100%', maxWidth: '1200px', padding: '0 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => navigate('/teacher')}>
-            <div style={{ background: 'var(--system-blue)', color: 'white', padding: '8px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0, 102, 204, 0.2)' }}><Shield size={20}/></div>
-            <span style={{ fontWeight: '800', fontSize: '20px', letterSpacing: '-0.03em' }}>Toetsomgeving</span>
-          </div>
-          {!isEditing && (
-            <div className="filter-bar" style={{ background: 'rgba(0,0,0,0.03)' }}>
-              <button className={`filter-item ${window.location.pathname === '/teacher' ? 'active' : ''}`} onClick={() => navigate('/teacher')}>Toetsen</button>
-              <button className={`filter-item ${window.location.pathname.startsWith('/teacher/bank') ? 'active' : ''}`} onClick={() => navigate('/teacher/bank')}>Vraagbank</button>
-            </div>
-          )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => navigate('/teacher')}>
+          <div style={{ background: 'var(--system-blue)', color: 'white', padding: '8px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0, 102, 204, 0.2)' }}><Shield size={20}/></div>
+          <span style={{ fontWeight: '800', fontSize: '20px', letterSpacing: '-0.03em' }}>Toetsomgeving</span>
         </div>
-
+        {!isEditing && (
+          <div className="filter-bar" style={{ background: 'rgba(0,0,0,0.03)' }}>
+            <button className={`filter-item ${window.location.pathname === '/teacher' ? 'active' : ''}`} onClick={() => navigate('/teacher')}>Toetsen</button>
+            <button className={`filter-item ${window.location.pathname.startsWith('/teacher/bank') ? 'active' : ''}`} onClick={() => navigate('/teacher/bank')}>Vraagbank</button>
+            {user.email === 'joachim.vanmeirvenne@atheneumkapellen.be' && (
+              <button className={`filter-item ${window.location.pathname === '/teacher/students' ? 'active' : ''}`} onClick={() => navigate('/teacher/students')}>Leerlingen</button>
+            )}
+          </div>
+        )}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', borderLeft: '1px solid var(--system-border)', paddingLeft: '24px' }}>
             <div style={{ textAlign: 'right' }}>
