@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Plus, Trash2, Edit3, X, Database, Share2, Users, Save, CheckCircle2, Circle } from 'lucide-react';
+import { ArrowLeft, Search, Trash2, Edit3, X, Users, Save } from 'lucide-react';
 import { TopNav } from '../components/TopNav';
 import type { Question } from '../types';
 
