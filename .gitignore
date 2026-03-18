@@ -34,6 +34,9 @@ Thumbs.db
 *.swo
 
 # Project specific
-server/temp_photos/
-server/public/photos/student_*.jpg
+server/public/photos/*
 !server/public/photos/.gitkeep
+server/src/temp_*/
+server/src/debug_*/
+server/uploads/
+uploads/
