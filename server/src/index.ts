@@ -162,6 +162,50 @@ app.get('/api/teacher/exams', (req, res) => {
   });
 });
 
+app.get('/api/teacher/trashed-exams', (req, res) => {
+  const { teacherId } = req.query;
+  db.all(`
+    SELECT e.*, 
+    (SELECT COUNT(*) FROM submissions WHERE exam_id = e.id) as submission_count
+    FROM exams e 
+    WHERE e.teacher_id = ? AND e.is_deleted = 1
+    ORDER BY e.created_at DESC`, [teacherId], (err, rows: any[]) => {
+    const result = (rows || []).map(r => ({ 
+      ...r, questions: JSON.parse(r.questions),
+      labels: r.labels ? JSON.parse(r.labels) : [],
+      isGraded: !!r.is_graded,
+      requireFullscreen: !!r.require_fullscreen,
+      detectTabSwitch: !!r.detect_tab_switch,
+      isShared: !!r.is_shared,
+      isDeleted: !!r.is_deleted,
+      submissionCount: r.submission_count,
+      hasSubmissions: r.submission_count > 0
+    }));
+    res.json(result);
+  });
+});
+
+app.post('/api/exams/:id/restore', (req, res) => {
+  db.run('UPDATE exams SET is_deleted = 0 WHERE id = ?', [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: 'DB Error' });
+    res.json({ success: true });
+  });
+});
+
+app.delete('/api/exams/:id/permanent', (req, res) => {
+  db.run('DELETE FROM exams WHERE id = ?', [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: 'DB Error' });
+    res.json({ success: true });
+  });
+});
+
+app.delete('/api/exams/:id', (req, res) => {
+  db.run('UPDATE exams SET is_deleted = 1 WHERE id = ?', [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: 'DB Error' });
+    res.json({ success: true });
+  });
+});
+
 app.get('/api/admin/teachers', (req, res) => {
   db.all('SELECT id, name, email FROM users WHERE role = "teacher" ORDER BY name', [], (err, rows) => {
     res.json(rows || []);
