@@ -104,8 +104,9 @@ export default function TeacherResults() {
         return parseFloat(((totalCorrect / q.tableConfig.interactiveCells.length) * q.points).toFixed(2));
       }
       case 'fill-blanks': {
-        if (!q.text || !answer) return 0;
-        const parts = q.text.split(/(\{.*?\})/);
+        const fillText = q.content || q.text; // Fallback for transition
+        if (!fillText || !answer) return 0;
+        const parts = fillText.split(/(\{.*?\})/);
         let correctCount = 0;
         let totalBlanks = 0;
         parts.forEach((part, i) => {
@@ -129,10 +130,17 @@ export default function TeacherResults() {
         fetch(`/api/exams/details/${examId}`),
         fetch(`/api/exams/${examId}/submissions`)
       ]);
+      
+      if (!examRes.ok || !subsRes.ok) {
+        throw new Error('Server fout bij ophalen data');
+      }
+
       const examData: Exam = await examRes.json();
       const subsData: Submission[] = await subsRes.json();
+      
       setExam(examData);
       setSubmissions(subsData);
+      
       const initialScores: Record<string, any> = {};
       subsData.forEach((s: Submission) => {
         const scores = s.scores || {};
@@ -145,7 +153,12 @@ export default function TeacherResults() {
         initialScores[s.id] = scores;
       });
       setAllManualScores(initialScores);
-    } catch (e) { console.error(e); } finally { setLoading(false); }
+    } catch (e) { 
+      console.error('Fetch error:', e);
+      alert('Kon de gegevens niet laden. Is de server gecrasht?');
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const fetchSubmissions = async () => {
@@ -356,9 +369,10 @@ export default function TeacherResults() {
       );
     }
     if (q.type === 'fill-blanks') {
+      const fillText = q.content || q.text;
       return (
         <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--system-border)', lineHeight: '2', fontSize: '16px' }}>
-          {q.text.split(/(\{.*?\})/).map((part: string, i: number) => {
+          {fillText.split(/(\{.*?\})/).map((part: string, i: number) => {
             if (part.startsWith('{') && part.endsWith('}')) {
               const expected = part.slice(1, -1);
               const studentVal = (answer?.[i] || '').toString();

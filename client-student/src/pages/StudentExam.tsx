@@ -164,7 +164,7 @@ const QuestionRenderer = ({ q, answers, setAnswers, handleDragStart, handleDropM
 
       {q.type === 'fill-blanks' && (
         <div style={{ background: 'white', padding: '40px', borderRadius: '24px', border: '1px solid var(--system-border)', lineHeight: '2.5', fontSize: '18px' }}>
-          {q.text.split(/(\{.*?\})/).map((part: string, i: number) => {
+          {(q.content || q.text).split(/(\{.*?\})/).map((part: string, i: number) => {
             if (part.startsWith('{') && part.endsWith('}')) {
               const blankId = i; // Gebruik index als unieke ID voor dit gat
               const expectedValue = part.slice(1, -1);
