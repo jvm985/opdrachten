@@ -7,26 +7,28 @@ export interface Question {
   id: string;
   type: 'open' | 'multiple-choice' | 'true-false' | 'map' | 'definitions' | 'matching' | 'ordering' | 'image-analysis' | 'timeline' | 'table-fill' | 'fill-blanks';
   text: string;
+  content?: string; // Voor gatentekst
   points: number;
   options?: string[];
   correctAnswer: string;
   correctExplanation?: string;
+  explainIfFalse?: boolean;
   image?: string;
   locations?: Location[];
   pairs?: DefinitionPair[];
   matchingPairs?: MatchingPair[];
   orderItems?: string[];
-  orderDirection?: 'vertical' | 'horizontal';
-  subQuestions?: SubQuestion[];
-  tableData?: string[][];
-  tableConfig?: { interactiveCells: { r: number, c: number }[], mode: 'type' | 'drag', ignoreRowOrder?: boolean };
-  timelineData?: { id: string, text: string }[][];
+  totalBuckets?: number;
   startYear?: number;
   endYear?: number;
-  totalBuckets?: number;
-  explainIfFalse?: boolean;
-  labels?: string[];
-  isShared?: boolean;
+  timelineData?: { id: string; text: string; }[][];
+  tableData?: string[][];
+  tableConfig?: {
+    mode: 'type' | 'drag';
+    interactiveCells: { r: number; c: number }[];
+    ignoreRowOrder?: boolean;
+  };
+  subQuestions?: SubQuestion[];
 }
 
 export interface Exam {
@@ -36,7 +38,6 @@ export interface Exam {
   exam_key: string;
   questions: Question[];
   labels: string[];
-  type: 'taak' | 'toets' | 'examen' | 'formulier';
   isGraded: boolean;
   requireFullscreen: boolean;
   detectTabSwitch: boolean;
@@ -45,6 +46,7 @@ export interface Exam {
   isShared: boolean;
   isDeleted: boolean;
   teacherName?: string;
+  teacherEmail?: string;
   created_at: string;
 }
 

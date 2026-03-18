@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Search, Edit3, Trash2, UserPlus, Upload, X, Save, GraduationCap, FileSpreadsheet, Users } from 'lucide-react';
+import { ArrowLeft, Search, Edit3, Trash2, UserPlus, Upload, X, Save, GraduationCap, FileSpreadsheet, Users } from 'lucide-react';
 import { TopNav } from '../components/TopNav';
 
 interface Student {
@@ -18,12 +18,13 @@ export default function StudentManagement() {
 
   const [students, setStudents] = useState<Student[]>([]);
   const [search, setSearch] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
-  const [isLinkingPhotos, setIsLinkingPhotos] = useState(false);
-  const [isImportingXLSX, setIsImportingXLSX] = useState(false);
   const [currentStudent, setCurrentStudent] = useState<Partial<Student> | null>(null);
+  const [showImportMenu, setShowImportMenu] = useState(false);
+  
+  const fileInputExcel = React.useRef<HTMLInputElement>(null);
+  const fileInputPhotos = React.useRef<HTMLInputElement>(null);
+  const fileInputPDF = React.useRef<HTMLInputElement>(null);
 
   const dropdownItemStyle: React.CSSProperties = {
     width: '100%',
@@ -43,6 +44,12 @@ export default function StudentManagement() {
   };
 
   useEffect(() => {
+    const handleClick = () => setShowImportMenu(false);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, []);
+
+  useEffect(() => {
     if (user.role !== 'teacher' || !isAdmin) {
       navigate('/teacher');
       return;
@@ -57,8 +64,6 @@ export default function StudentManagement() {
       setStudents(data);
     } catch (e) {
       console.error(e);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -92,99 +97,51 @@ export default function StudentManagement() {
   const handleImportPDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    setIsImporting(true);
     const formData = new FormData();
     formData.append('pdf', file);
-
     try {
-      const res = await fetch('/api/admin/import-students-pdf', {
-        method: 'POST',
-        body: formData,
-      });
+      const res = await fetch('/api/admin/import-students-pdf', { method: 'POST', body: formData });
       const data = await res.json();
       if (res.ok) {
         alert(`Succesvol ${data.count} studenten geïmporteerd!`);
         fetchStudents();
-      } else {
-        alert('Import mislukt: ' + data.error);
-      }
-    } catch (e) {
-      alert('Er is een fout opgetreden.');
-    } finally {
-      setIsImporting(false);
-      e.target.value = '';
-    }
-  };
-
-  const handleLinkPhotosPDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) {
-      console.log('Geen bestanden geselecteerd');
-      return;
-    }
-
-    console.log(`📤 Start upload van ${files.length} bestanden...`);
-    setIsLinkingPhotos(true);
-    let totalLinked = 0;
-
-    try {
-      for (let i = 0; i < files.length; i++) {
-        console.log(`📄 Verwerken bestand ${i+1}: ${files[i].name} (${files[i].size} bytes)`);
-        const formData = new FormData();
-        formData.append('pdf', files[i]);
-
-        const res = await fetch('/api/admin/import-photos-pdf', {
-          method: 'POST',
-          body: formData,
-        });
-        
-        console.log(`📡 Server response status voor ${files[i].name}: ${res.status}`);
-        const data = await res.json();
-        if (res.ok) {
-          console.log(`✅ Succes: ${data.count} foto's gekoppeld`);
-          totalLinked += data.count;
-        } else {
-          console.error(`❌ Fout bij bestand ${files[i].name}: ${data.error}`);
-        }
-      }
-      alert(`Koppelen voltooid! In totaal ${totalLinked} foto's gekoppeld.`);
-      fetchStudents();
-    } catch (e) {
-      console.error('💥 Fatale fout tijdens upload:', e);
-      alert('Er is een fout opgetreden tijdens het verwerken van de bestanden. Check de console (F12).');
-    } finally {
-      setIsLinkingPhotos(false);
-      e.target.value = '';
-    }
+      } else { alert('Import mislukt: ' + data.error); }
+    } catch (e) { alert('Er is een fout opgetreden.'); }
+    finally { e.target.value = ''; }
   };
 
   const handleImportXLSX = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    setIsImportingXLSX(true);
     const formData = new FormData();
     formData.append('file', file);
-
     try {
-      const res = await fetch('/api/admin/import-students-xlsx', {
-        method: 'POST',
-        body: formData,
-      });
+      const res = await fetch('/api/admin/import-students-xlsx', { method: 'POST', body: formData });
       const data = await res.json();
       if (res.ok) {
         alert(`Succesvol ${data.count} studenten geïmporteerd uit Excel!`);
         fetchStudents();
-      } else {
-        alert('Import mislukt: ' + data.error);
+      } else { alert('Import mislukt: ' + data.error); }
+    } catch (e) { alert('Er is een fout opgetreden.'); }
+    finally { e.target.value = ''; }
+  };
+
+  const handleLinkPhotosPDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    let totalLinked = 0;
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const formData = new FormData();
+        formData.append('pdf', files[i]);
+        const res = await fetch('/api/admin/import-photos-pdf', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (res.ok) totalLinked += data.count;
       }
-    } catch (e) {
-      alert('Er is een fout opgetreden.');
-    } finally {
-      setIsImportingXLSX(false);
-      e.target.value = '';
-    }
+      alert(`Koppelen voltooid! In totaal ${totalLinked} foto's gekoppeld.`);
+      fetchStudents();
+    } catch (e) { alert('Er is een fout opgetreden tijdens het verwerken.'); }
+    finally { e.target.value = ''; }
   };
 
   const handleClearAll = async () => {
@@ -199,19 +156,6 @@ export default function StudentManagement() {
     s.name.toLowerCase().includes(search.toLowerCase()) || 
     s.klas.toLowerCase().includes(search.toLowerCase())
   );
-
-  const [showImportMenu, setShowImportMenu] = useState(false);
-  const fileInputExcel = React.useRef<HTMLInputElement>(null);
-  const fileInputPhotos = React.useRef<HTMLInputElement>(null);
-  const fileInputPDF = React.useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const handleClick = () => setShowImportMenu(false);
-    window.addEventListener('click', handleClick);
-    return () => window.removeEventListener('click', handleClick);
-  }, []);
-
-  // ... (rest van de functies blijven hetzelfde)
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f5f7', paddingTop: '72px' }}>
