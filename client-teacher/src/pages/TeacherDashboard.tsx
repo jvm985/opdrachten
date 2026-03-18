@@ -169,7 +169,7 @@ export default function TeacherDashboard() {
     setIsShared(false);
     setRequireFullscreen(true);
     setDetectTabSwitch(true);
-    setQuestions([{ id: randomUUID(), type: 'open', text: '', points: 1, correctAnswer: '' }]);
+    setQuestions([{ id: crypto.randomUUID(), type: 'open', text: '', points: 1, correctAnswer: '' }]);
     setLabels([]);
     setHasSubmissions(false);
     setIsEditing(true);
@@ -214,7 +214,7 @@ export default function TeacherDashboard() {
   };
 
   const handleAddQuestion = () => {
-    const newQ: Question = { id: randomUUID(), type: 'open', text: '', points: 1, correctAnswer: '' };
+    const newQ: Question = { id: crypto.randomUUID(), type: 'open', text: '', points: 1, correctAnswer: '' };
     setQuestions([...questions, newQ]);
     setCurrentQuestionIndex(questions.length);
   };
@@ -246,7 +246,7 @@ export default function TeacherDashboard() {
         body: JSON.stringify({
           teacherId: user.id,
           title: `${exam.title} (kopie)`,
-          questions: exam.questions,
+          questions: exam.questions.map(q => ({ ...q, id: crypto.randomUUID() })),
           labels: exam.labels,
           isGraded: exam.isGraded,
           requireFullscreen: exam.requireFullscreen,
@@ -274,7 +274,6 @@ export default function TeacherDashboard() {
   };
 
   const handlePreview = () => {
-    // Sla eerst op als concept of gebruik tijdelijke state? Voor nu: open student-view met preview flag
     alert('Voorvertoning opent in nieuw tabblad. Sla je wijzigingen eerst op om de nieuwste versie te zien.');
     window.open(`https://student.irishof.cloud/exam/PREVIEW?preview=true`, '_blank');
   };
@@ -294,7 +293,7 @@ export default function TeacherDashboard() {
 
   const handleAddFromBank = (q: Question) => {
     const { id, ...rest } = q;
-    setQuestions([...questions, { id: randomUUID(), ...rest } as Question]);
+    setQuestions([...questions, { id: crypto.randomUUID(), ...rest } as Question]);
   };
 
   const handleMapClick = (e: React.MouseEvent, q: Question) => {
@@ -304,7 +303,7 @@ export default function TeacherDashboard() {
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     const label = prompt('Naam voor deze locatie:');
     if (label) {
-      const newLoc = { id: randomUUID(), label, x, y };
+      const newLoc = { id: crypto.randomUUID(), label, x, y };
       handleUpdateQuestion(q.id, { locations: [...(q.locations || []), newLoc] });
     }
   };
