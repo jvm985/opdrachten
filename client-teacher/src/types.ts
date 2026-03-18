@@ -7,7 +7,7 @@ export interface Question {
   id: string;
   type: 'open' | 'multiple-choice' | 'true-false' | 'map' | 'definitions' | 'matching' | 'ordering' | 'image-analysis' | 'timeline' | 'table-fill' | 'fill-blanks';
   text: string;
-  content?: string; // Voor gatentekst
+  content?: string;
   points: number;
   options?: string[];
   correctAnswer: string;
@@ -29,6 +29,8 @@ export interface Question {
     ignoreRowOrder?: boolean;
   };
   subQuestions?: SubQuestion[];
+  labels?: string[]; // Voor de vraagbank
+  isShared?: boolean; // Voor de vraagbank
 }
 
 export interface Exam {
@@ -39,6 +41,7 @@ export interface Exam {
   questions: Question[];
   labels: string[];
   isGraded: boolean;
+  type: string; // Behouden voor data-integriteit
   requireFullscreen: boolean;
   detectTabSwitch: boolean;
   submissionCount: number;

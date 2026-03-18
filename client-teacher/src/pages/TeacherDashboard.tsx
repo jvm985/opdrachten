@@ -29,7 +29,6 @@ export default function TeacherDashboard() {
   const [hasSubmissions, setHasSubmissions] = useState(false);
   
   const [title, setTitle] = useState('');
-  const [type, setType] = useState<'taak' | 'toets' | 'examen' | 'formulier'>('examen');
   const [isGraded, setIsGraded] = useState(true);
   const [isShared, setIsShared] = useState(false);
   const [requireFullscreen, setRequireFullscreen] = useState(true);
@@ -155,145 +154,159 @@ export default function TeacherDashboard() {
         fetch(`/api/questions-bank?teacherId=${user.id}`),
         fetch(`/api/questions-bank/shared?teacherId=${user.id}`)
       ]);
-      const mineData = await mineRes.json();
-      const sharedData = await sharedRes.json();
-      setBankQuestions(Array.isArray(mineData) ? mineData : []);
-      setSharedBankQuestions(Array.isArray(sharedData) ? sharedData : []);
+      const mine = await mineRes.json();
+      const shared = await sharedRes.json();
+      setBankQuestions(Array.isArray(mine) ? mine : []);
+      setSharedBankQuestions(Array.isArray(shared) ? shared : []);
       setShowBank(true);
     } catch (e) { console.error(e); }
   };
 
   const handleStartCreate = () => {
-    setCurrentExamId(null); setHasSubmissions(false); setTitle(''); setType('examen'); setIsGraded(true); setIsShared(false);
-    setRequireFullscreen(true); setDetectTabSwitch(true); setLabels([]);
-    setQuestions([{ id: Math.random().toString(36).substr(2, 9), type: 'open', text: '', points: 1, correctAnswer: '' }]);
-    setCurrentQuestionIndex(0); setIsEditing(true);
+    setCurrentExamId(null);
+    setTitle('');
+    setIsGraded(true);
+    setIsShared(false);
+    setRequireFullscreen(true);
+    setDetectTabSwitch(true);
+    setQuestions([{ id: randomUUID(), type: 'open', text: '', points: 1, correctAnswer: '' }]);
+    setLabels([]);
+    setHasSubmissions(false);
+    setIsEditing(true);
+    setCurrentQuestionIndex(0);
   };
 
-  const handleStartEdit = (exam: Exam) => {
-    setCurrentExamId(exam.id); setHasSubmissions(exam.hasSubmissions); setTitle(exam.title);
-    setType(exam.type || 'examen'); setIsGraded(exam.isGraded !== undefined ? exam.isGraded : true);
-    setIsShared(!!exam.isShared);
-    setRequireFullscreen(exam.requireFullscreen !== undefined ? exam.requireFullscreen : true);
-    setDetectTabSwitch(exam.detectTabSwitch !== undefined ? exam.detectTabSwitch : true);
-    setQuestions(exam.questions); setLabels(exam.labels || []); setCurrentQuestionIndex(0); setIsEditing(true);
+  const handleStartEdit = async (exam: Exam) => {
+    setCurrentExamId(exam.id);
+    setTitle(exam.title);
+    setIsGraded(exam.isGraded);
+    setIsShared(exam.isShared);
+    setRequireFullscreen(exam.requireFullscreen);
+    setDetectTabSwitch(exam.detectTabSwitch);
+    setQuestions(exam.questions);
+    setLabels(exam.labels || []);
+    setHasSubmissions(exam.submissionCount > 0);
+    setIsEditing(true);
+    setCurrentQuestionIndex(0);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Verwijderen?')) return;
-    try { await fetch(`/api/exams/${id}`, { method: 'DELETE' }); fetchExams(); } catch (e) { }
+  const handleSaveExam = async () => {
+    if (!title.trim()) return alert('Titel is verplicht');
+    setIsLoading(true);
+    try {
+      const url = currentExamId ? `/api/exams/${currentExamId}` : '/api/exams';
+      const method = currentExamId ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          teacherId: user.id,
+          title, questions, labels,
+          isGraded, requireFullscreen, detectTabSwitch, isShared
+        })
+      });
+      if (res.ok) {
+        setIsEditing(false);
+        fetchExams();
+      }
+    } catch (e) { console.error(e); }
+    finally { setIsLoading(false); }
+  };
+
+  const handleAddQuestion = () => {
+    const newQ: Question = { id: randomUUID(), type: 'open', text: '', points: 1, correctAnswer: '' };
+    setQuestions([...questions, newQ]);
+    setCurrentQuestionIndex(questions.length);
+  };
+
+  const handleRemoveQuestion = (idx: number) => {
+    const newQs = questions.filter((_, i) => i !== idx);
+    setQuestions(newQs);
+    if (currentQuestionIndex >= newQs.length) setCurrentQuestionIndex(Math.max(0, newQs.length - 1));
   };
 
   const handleUpdateQuestion = (id: string, updates: Partial<Question>) => {
     setQuestions(questions.map(q => q.id === id ? { ...q, ...updates } : q));
   };
 
-  const handleToggleShare = async (exam: Exam) => {
-    const newShared = !exam.isShared;
-    await fetch(`/api/exams/${exam.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...exam, isShared: newShared }),
-    });
-    fetchExams();
-    alert(newShared ? 'Toets gedeeld met collega\'s' : 'Toets niet meer gedeeld');
-  };
-
-  const handleSaveExam = async (stayInEditMode = false) => {
-    if (!title) return alert('Titel verplicht');
-    setIsLoading(true);
+  const handleDelete = async (id: string) => {
+    if (!confirm('Toets naar prullenbak verplaatsen?')) return;
     try {
-      const method = currentExamId ? 'PUT' : 'POST';
-      const url = currentExamId ? `/api/exams/${currentExamId}` : '/api/exams';
-      const res = await fetch(url, {
-        method, headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teacherId: user.id, title, questions, labels, type, isGraded, requireFullscreen, detectTabSwitch, isShared }),
+      const res = await fetch(`/api/exams/${id}`, { method: 'DELETE' });
+      if (res.ok) fetchExams();
+    } catch (e) { console.error(e); }
+  };
+
+  const handleDuplicate = async (exam: Exam) => {
+    if (!confirm('Toets kopiëren?')) return;
+    try {
+      const res = await fetch('/api/exams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          teacherId: user.id,
+          title: `${exam.title} (kopie)`,
+          questions: exam.questions,
+          labels: exam.labels,
+          isGraded: exam.isGraded,
+          requireFullscreen: exam.requireFullscreen,
+          detectTabSwitch: exam.detectTabSwitch,
+          isShared: false
+        })
       });
-      const data = await res.json();
-      if (res.ok) { if (!stayInEditMode) setIsEditing(false); fetchExams(); return data; }
-    } catch (e) { } finally { setIsLoading(false); }
+      if (res.ok) fetchExams();
+    } catch (e) { console.error(e); }
   };
 
-  const getStudentBaseUrl = () => {
-    return window.location.hostname === 'localhost' ? 'http://localhost:5174' : 'http://student.irishof.cloud';
-  };
-
-  const handlePreview = async () => {
-    const data = await handleSaveExam(true);
-    if (data && data.examKey) window.open(`${getStudentBaseUrl()}/exam/${data.examKey}?preview=true`, '_blank');
+  const handleToggleShare = async (exam: Exam) => {
+    try {
+      await fetch(`/api/exams/${exam.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...exam, isShared: !exam.isShared })
+      });
+      fetchExams();
+    } catch (e) { console.error(e); }
   };
 
   const handleQuickPreview = (exam: Exam) => {
-    window.open(`${getStudentBaseUrl()}/exam/${exam.exam_key}?preview=true`, '_blank');
+    window.open(`https://student.irishof.cloud/exam/${exam.exam_key}?preview=true`, '_blank');
   };
 
-  const handleAddQuestion = () => {
-    if (hasSubmissions) return;
-    const newQ: Question = { id: Math.random().toString(36).substr(2, 9), type: 'open', text: '', points: 1, correctAnswer: '' };
-    setQuestions([...questions, newQ]); 
-    setCurrentQuestionIndex(questions.length);
+  const handlePreview = () => {
+    // Sla eerst op als concept of gebruik tijdelijke state? Voor nu: open student-view met preview flag
+    alert('Voorvertoning opent in nieuw tabblad. Sla je wijzigingen eerst op om de nieuwste versie te zien.');
+    window.open(`https://student.irishof.cloud/exam/PREVIEW?preview=true`, '_blank');
   };
 
-  const handleRemoveQuestion = (idx: number) => {
-    if (hasSubmissions || questions.length <= 1) return;
-    const newQs = questions.filter((_, i) => i !== idx);
-    setQuestions(newQs); if (currentQuestionIndex >= newQs.length) setCurrentQuestionIndex(newQs.length - 1);
-  };
-
-  const handleImportFromBank = (q: Question) => {
-    if (hasSubmissions) return;
-    setQuestions([...questions, { ...q, id: Math.random().toString(36).substr(2, 9) }]);
-    setCurrentQuestionIndex(questions.length); setShowBank(false);
-  };
-
-  const saveQuestionToBank = async (q: Question, forceNew = false) => {
-    if (!confirm('Wilt u deze vraag kopiëren naar uw persoonlijke vraagbank?')) return;
+  const saveQuestionToBank = async (q: Question) => {
     setIsSavingToBank(q.id);
     try {
       const res = await fetch('/api/questions-bank', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teacherId: user.id, question: q, labels, forceNew }),
+        body: JSON.stringify({ teacherId: user.id, question: q, labels: q.labels || [] })
       });
-      if (res.ok) alert('Vraag succesvol gekopieerd naar de vraagbank!');
-    } catch (e) { } finally { setIsSavingToBank(null); }
+      if (res.ok) alert('Vraag opgeslagen in je bank!');
+    } catch (e) { console.error(e); }
+    finally { setIsSavingToBank(null); }
   };
 
-  const handleDuplicate = async (exam: Exam) => {
-    try {
-      setIsLoading(true);
-      await fetch('/api/exams', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teacherId: user.id, title: `${exam.title} (kopie)`, questions: exam.questions, labels: exam.labels, type: exam.type, isGraded: exam.isGraded, requireFullscreen: exam.requireFullscreen, detectTabSwitch: exam.detectTabSwitch, isShared: false }),
-      });
-      fetchExams();
-      alert('Toets gekopieerd naar je eigen omgeving!');
-    } catch (e) { } finally { setIsLoading(false); }
-  };
-
-  const handleStartLiveSessie = (exam: Exam) => {
-    setRequireFullscreen(exam.requireFullscreen ?? true);
-    setDetectTabSwitch(exam.detectTabSwitch ?? true);
-    setSelectedExamForLive(exam);
-  };
-
-  const confirmStartLiveSessie = async () => {
-    if (!selectedExamForLive) return;
-    await fetch(`/api/exams/${selectedExamForLive.id}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...selectedExamForLive, requireFullscreen, detectTabSwitch }),
-    });
-    navigate(`/teacher/live/${selectedExamForLive.exam_key}`);
-    setSelectedExamForLive(null);
+  const handleAddFromBank = (q: Question) => {
+    const { id, ...rest } = q;
+    setQuestions([...questions, { id: randomUUID(), ...rest } as Question]);
   };
 
   const handleMapClick = (e: React.MouseEvent, q: Question) => {
-    if (hasSubmissions) return;
-    const rect = e.currentTarget.getBoundingClientRect();
+    if (q.type !== 'map' || hasSubmissions) return;
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
-    handleUpdateQuestion(q.id, { locations: [...(q.locations || []), { id: Math.random().toString(36).substr(2, 9), label: 'Nieuw', x, y }] });
+    const label = prompt('Naam voor deze locatie:');
+    if (label) {
+      const newLoc = { id: randomUUID(), label, x, y };
+      handleUpdateQuestion(q.id, { locations: [...(q.locations || []), newLoc] });
+    }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, qId: string) => {
@@ -305,52 +318,76 @@ export default function TeacherDashboard() {
     }
   };
 
-  const allLabels = Array.from(new Set([...exams, ...sharedExams].flatMap(e => e.labels || []))).sort();
+  const handleStartLiveSessie = (exam: Exam) => {
+    setSelectedExamForLive(exam);
+    setRequireFullscreen(exam.requireFullscreen);
+    setDetectTabSwitch(exam.detectTabSwitch);
+  };
+
+  const confirmStartLiveSessie = async () => {
+    if (!selectedExamForLive) return;
+    try {
+      await fetch(`/api/exams/${selectedExamForLive.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...selectedExamForLive, requireFullscreen, detectTabSwitch })
+      });
+      navigate(`/teacher/live/${selectedExamForLive.exam_key}`);
+    } catch (e) { console.error(e); }
+  };
+
   const toggleFilter = (label: string) => {
     setActiveFilters(prev => prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]);
   };
 
+  const allLabels = Array.from(new Set([
+    ...exams.flatMap(e => e.labels || []),
+    ...sharedExams.flatMap(e => e.labels || []),
+    ...allExams.flatMap(e => e.labels || [])
+  ])).sort();
+
   const editorProps = {
-    viewMode, hasSubmissions, isSavingToBank, handleRemoveQuestion, handleUpdateQuestion, handleMapClick, handleImageUpload, saveQuestionToBank
+    handleUpdateQuestion,
+    handleRemoveQuestion,
+    handleMapClick,
+    handleImageUpload,
+    saveQuestionToBank,
+    hasSubmissions,
+    isSavingToBank,
+    viewMode
   };
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f5f7', paddingTop: '72px' }}>
-      <TopNav isEditing={isEditing} user={user} />
+      <TopNav user={user} />
       
       {isEditing ? (
-        <div style={{ maxWidth: '800px', margin: '0 auto', padding: '48px 20px' }}>
+        <div className="animate-up" style={{ maxWidth: '1000px', margin: '0 auto', padding: '48px 20px' }}>
           {showBank && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
-              <div className="card animate-up" style={{ width: '100%', maxWidth: '800px', maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+              <div className="card animate-scale" style={{ maxWidth: '800px', width: '100%', height: '80vh', display: 'flex', flexDirection: 'column', padding: '32px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                   <h2 style={{ margin: 0 }}>Vraagbank</h2>
-                  <button className="btn btn-secondary" style={{ padding: '8px' }} onClick={() => setShowBank(false)}><X size={20}/></button>
+                  <button className="btn btn-secondary" style={{ padding: '8px', borderRadius: '50%' }} onClick={() => setShowBank(false)}><X size={20}/></button>
                 </div>
-                
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid #eee' }}>
-                  <button className={`btn ${bankTab === 'mine' ? '' : 'btn-secondary'}`} style={{ border: 'none', borderRadius: '8px 8px 0 0' }} onClick={() => setBankTab('mine')}>Mijn vragen</button>
-                  <button className={`btn ${bankTab === 'shared' ? '' : 'btn-secondary'}`} style={{ border: 'none', borderRadius: '8px 8px 0 0' }} onClick={() => setBankTab('shared')}>Gedeeld door collega's</button>
+                <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <Search style={{ position: 'absolute', left: '12px', top: '12px', color: '#86868b' }} size={18}/>
+                    <input className="input" style={{ paddingLeft: '40px' }} placeholder="Zoek in bank..." value={bankSearch} onChange={e => setBankSearch(e.target.value)} />
+                  </div>
                 </div>
-
-                <div style={{ position: 'relative', marginBottom: '20px' }}>
-                  <Search size={18} style={{ position: 'absolute', left: '12px', top: '14px', color: 'var(--system-secondary-text)' }} />
-                  <input className="input" style={{ paddingLeft: '40px' }} placeholder="Zoek op tekst of label..." value={bankSearch} onChange={e => setBankSearch(e.target.value)} />
+                <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', borderBottom: '1px solid #f5f5f7' }}>
+                  <button style={{ padding: '8px 4px', border: 'none', background: 'none', borderBottom: bankTab === 'mine' ? '2px solid var(--system-blue)' : 'none', fontWeight: '600', cursor: 'pointer' }} onClick={() => setBankTab('mine')}>Mijn vragen</button>
+                  <button style={{ padding: '8px 4px', border: 'none', background: 'none', borderBottom: bankTab === 'shared' ? '2px solid var(--system-blue)' : 'none', fontWeight: '600', cursor: 'pointer' }} onClick={() => setBankTab('shared')}>Gedeeld</button>
                 </div>
-                <div style={{ overflowY: 'auto', flex: 1, padding: '4px' }}>
-                  {(bankTab === 'mine' ? bankQuestions : sharedBankQuestions).filter(bq => bq.text.toLowerCase().includes(bankSearch.toLowerCase()) || bq.labels?.some(l => l.toLowerCase().includes(bankSearch.toLowerCase()))).map(bq => (
-                    <div key={bq.id} className="card card-hoverable" style={{ padding: '16px', marginBottom: '12px', border: '1px solid var(--system-border)', background: '#fff' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px' }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
-                            <span className="badge" style={{ fontSize: '10px' }}>{bq.type}</span>
-                            {bq.labels?.map(l => <span key={l} className="badge" style={{ fontSize: '10px', background: 'var(--system-blue)', color: 'white', border: 'none' }}>{l}</span>)}
-                            {bankTab === 'shared' && <span className="badge" style={{ fontSize: '10px', background: '#f5f5f7', color: '#1d1d1f', border: 'none' }}>Door: {(bq as any).teacherName}</span>}
-                          </div>
-                          <p style={{ margin: 0, fontWeight: '500' }}>{bq.text}</p>
-                        </div>
-                        <button className="btn" style={{ height: '40px' }} onClick={() => handleImportFromBank(bq)}><Plus size={16}/> {bankTab === 'mine' ? 'Voeg toe' : 'Kopieer & Voeg toe'}</button>
+                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {(bankTab === 'mine' ? bankQuestions : sharedBankQuestions).filter(q => q.text.toLowerCase().includes(bankSearch.toLowerCase())).map(q => (
+                    <div key={q.id} style={{ padding: '16px', border: '1px solid #eee', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ flex: 1 }}>
+                        <span className="badge" style={{ marginBottom: '4px' }}>{q.type.toUpperCase()}</span>
+                        <p style={{ margin: 0, fontSize: '14px', fontWeight: '500' }}>{q.text}</p>
                       </div>
+                      <button className="btn btn-secondary" onClick={() => handleAddFromBank(q)}><Plus size={16}/> Toevoegen</button>
                     </div>
                   ))}
                 </div>
@@ -393,7 +430,7 @@ export default function TeacherDashboard() {
                 </button>
                 
                 {showEditMenu && (
-                  <div className="glass animate-up" style={{ position: 'absolute', top: '42px', right: 0, width: '280px', background: 'white', borderRadius: '14px', boxShadow: 'var(--shadow-lg)', border: '1px solid rgba(0,0,0,0.05)', zIndex: 100, padding: '8px' }}>
+                  <div className="glass animate-up" style={{ position: 'absolute', top: '42px', right: 0, width: '280px', background: 'white', borderRadius: '14px', boxShadow: 'var(--shadow-lg)', border: '1px solid rgba(0,0,0,0.05)', zIndex: 100, padding: '6px' }}>
                     <button style={dropdownItemStyle} onClick={fetchBank}>
                       <Database size={16}/> Vraagbank openen
                     </button>
@@ -401,7 +438,7 @@ export default function TeacherDashboard() {
                       <Eye size={16}/> Voorvertoning (Preview)
                     </button>
                     
-                    <div style={{ height: '1px', background: '#f5f5f7', margin: '8px 0' }} />
+                    <div style={{ height: '1px', background: '#f5f5f7', margin: '4px 0' }} />
                     
                     <div style={{ padding: '8px 12px' }}>
                       <p style={{ fontSize: '10px', fontWeight: '800', color: 'var(--system-secondary-text)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Instellingen</p>
@@ -457,10 +494,9 @@ export default function TeacherDashboard() {
                 </div>
               </div>
 
-              {/* Actieve Labels */}
               {labels.length > 0 && (
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', padding: '4px 0' }}>
-                  {labels.map(l => (
+                  {labels.map((l: string) => (
                     <span key={l} className="animate-scale" style={{ 
                       background: 'var(--system-blue)', 
                       color: 'white', 
@@ -477,14 +513,13 @@ export default function TeacherDashboard() {
                       <X 
                         size={14} 
                         style={{ cursor: 'pointer', opacity: 0.8 }} 
-                        onClick={() => setLabels(labels.filter(x => x !== l))} 
+                        onClick={() => setLabels(labels.filter((x: string) => x !== l))} 
                       />
                     </span>
                   ))}
                 </div>
               )}
 
-              {/* Bestaande labels suggesties */}
               {(() => {
                 const allExistingLabels = Array.from(new Set([
                   ...exams.flatMap(e => e.labels || []),
@@ -497,7 +532,7 @@ export default function TeacherDashboard() {
                     <div style={{ marginTop: '4px', paddingTop: '16px', borderTop: '1px solid #f5f5f7' }}>
                       <p style={{ fontSize: '11px', fontWeight: '700', color: 'var(--system-secondary-text)', marginBottom: '10px', textTransform: 'uppercase' }}>Suggesties uit je bibliotheek:</p>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                        {allExistingLabels.map(l => (
+                        {allExistingLabels.map((l: string) => (
                           <button 
                             key={l} 
                             onClick={() => setLabels([...labels, l])}
@@ -550,22 +585,19 @@ export default function TeacherDashboard() {
                     onClick={handleAddQuestion} 
                     disabled={hasSubmissions}
                     style={{ 
-                      background: 'white', 
-                      border: '1px dashed', 
-                      borderColor: hasSubmissions ? 'var(--system-border)' : 'var(--system-blue)', 
-                      color: hasSubmissions ? '#86868b' : 'var(--system-blue)', 
-                      padding: '6px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: '600', 
-                      cursor: hasSubmissions ? 'not-allowed' : 'pointer', 
-                      display: 'flex', alignItems: 'center', gap: '6px',
-                      opacity: hasSubmissions ? 0.6 : 1
+                      width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                      background: 'white', border: '1px dashed var(--system-blue)', color: 'var(--system-blue)', cursor: 'pointer',
+                      opacity: hasSubmissions ? 0.5 : 1
                     }}
-                    title={hasSubmissions ? "Kan geen vragen toevoegen: er zijn al inzendingen" : "Voeg een nieuwe vraag toe"}
+                    title="Nieuwe vraag"
                   >
-                    <Plus size={16}/> Vraag toevoegen
+                    <Plus size={16}/>
                   </button>
                 </nav>
-                {questions[currentQuestionIndex] && <QuestionEditor q={questions[currentQuestionIndex]} index={currentQuestionIndex} {...editorProps} />}
-                <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '32px' }}>
+                
+                <QuestionEditor q={questions[currentQuestionIndex]} index={currentQuestionIndex} {...editorProps} />
+                
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '40px' }}>
                   <button className="btn btn-secondary" style={{ padding: '12px 32px' }} disabled={currentQuestionIndex === 0} onClick={() => setCurrentQuestionIndex(currentQuestionIndex - 1)}>Vorige</button>
                   <button className="btn btn-secondary" style={{ padding: '12px 32px' }} disabled={currentQuestionIndex === questions.length - 1} onClick={() => setCurrentQuestionIndex(currentQuestionIndex + 1)}>Volgende</button>
                 </div>
@@ -628,7 +660,7 @@ export default function TeacherDashboard() {
           {allLabels.length > 0 && (
             <div className="filter-bar" style={{ marginBottom: '40px', padding: '6px' }}>
               <button onClick={() => setActiveFilters([])} className={`filter-item ${activeFilters.length === 0 ? 'active' : ''}`}>Alle</button>
-              {allLabels.map(l => <button key={l} onClick={() => toggleFilter(l)} className={`filter-item ${activeFilters.includes(l) ? 'active' : ''}`}>{l}</button>)}
+              {allLabels.map((l: string) => <button key={l} onClick={() => toggleFilter(l)} className={`filter-item ${activeFilters.includes(l) ? 'active' : ''}`}>{l}</button>)}
             </div>
           )}
 
@@ -724,7 +756,7 @@ export default function TeacherDashboard() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '12px' }}>
-                    {exam.labels?.map(l => <span key={l} className="badge" style={{ fontSize: '10px', background: '#f5f5f7', border: 'none' }}>{l}</span>)}
+                    {exam.labels?.map((l: string) => <span key={l} className="badge" style={{ fontSize: '10px', background: '#f5f5f7', border: 'none' }}>{l}</span>)}
                   </div>
                 </div>
               );
