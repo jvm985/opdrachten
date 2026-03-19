@@ -5,7 +5,7 @@ async function createDemo() {
   console.log('🌱 Start creating demo data...');
   await initDb();
 
-  const teacherId = 'teacher-1';
+  const teacherId = 'joachim.vanmeirvenne@atheneumkapellen.be';
   const examKey = 'DEMO-ALGEMENE-KENNIS';
 
   // Check if exam already exists

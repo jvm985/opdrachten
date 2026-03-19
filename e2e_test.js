@@ -33,7 +33,7 @@ async function runTests() {
     await teacherPage.goto('http://localhost:5173', { waitUntil: 'networkidle2' });
     
     await teacherPage.evaluate(() => {
-      sessionStorage.setItem('user', JSON.stringify({ id: 'teacher-1', name: 'Test Docent', role: 'teacher' }));
+      sessionStorage.setItem('user', JSON.stringify({ id: 'joachim.vanmeirvenne@atheneumkapellen.be', name: 'Test Docent', role: 'teacher' }));
     });
     await teacherPage.goto('http://localhost:5173/teacher', { waitUntil: 'networkidle2' });
 

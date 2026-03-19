@@ -100,36 +100,44 @@ export default function TeacherDashboard() {
     }
   }, [activeFilters, exams, sharedExams, allExams, activeTab]);
 
+  const safeJson = async (res: Response) => {
+    const contentType = res.headers.get("content-type");
+    if (res.ok && contentType && contentType.includes("application/json")) {
+      return await res.json();
+    }
+    throw new Error(`Invalid response: ${res.status}`);
+  };
+
   const fetchExams = async () => {
     try {
       const res = await fetch(`/api/teacher/exams?teacherId=${user.id}`);
-      const data = await res.json();
+      const data = await safeJson(res);
       setExams(Array.isArray(data) ? data : []);
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error('fetchExams error:', e); }
   };
 
   const fetchSharedExams = async () => {
     try {
       const res = await fetch(`/api/teacher/shared-exams?teacherId=${user.id}`);
-      const data = await res.json();
+      const data = await safeJson(res);
       setSharedExams(Array.isArray(data) ? data : []);
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error('fetchSharedExams error:', e); }
   };
 
   const fetchAllExams = async () => {
     try {
       const res = await fetch('/api/admin/all-exams');
-      const data = await res.json();
+      const data = await safeJson(res);
       setAllExams(Array.isArray(data) ? data : []);
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error('fetchAllExams error:', e); }
   };
 
   const fetchAllTeachers = async () => {
     try {
       const res = await fetch('/api/admin/teachers');
-      const data = await res.json();
+      const data = await safeJson(res);
       setAllTeachers(Array.isArray(data) ? data : []);
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error('fetchAllTeachers error:', e); }
   };
 
   const handleReassignTeacher = async (examId: string, teacherId: string) => {

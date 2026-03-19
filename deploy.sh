@@ -36,14 +36,15 @@ sleep 5
 # Vind de juiste container naam (zoekt naar iets met 'api' in de huidige project context)
 CONTAINER_NAME=$(sudo docker ps --format "{{.Names}}" | grep api | head -n 1)
 
-if [ -z "$CONTAINER_NAME" ]; then
-  echo "⚠️  Waarschuwing: API container niet gevonden. Seeding overgeslagen."
-else
-  echo "📍 Seeding container: $CONTAINER_NAME"
-  sudo docker exec "$CONTAINER_NAME" npm run seed
-  sudo docker exec "$CONTAINER_NAME" npm run create-demo
-  sudo docker exec "$CONTAINER_NAME" npm run import-students
-fi
+# Seeding overgeslagen om productie data te beschermen
+# if [ -z "$CONTAINER_NAME" ]; then
+#   echo "⚠️  Waarschuwing: API container niet gevonden. Seeding overgeslagen."
+# else
+#   echo "📍 Seeding container: $CONTAINER_NAME"
+#   sudo docker exec "$CONTAINER_NAME" npm run seed
+#   sudo docker exec "$CONTAINER_NAME" npm run create-demo
+#   sudo docker exec "$CONTAINER_NAME" npm run import-students
+# fi
 
 echo "✅ Deployment finished successfully!"
 echo "🚀 De app is nu live op https://docent.irishof.cloud"

@@ -10,7 +10,7 @@ describe('Exam-Net Clone API Tests', () => {
   let createdQuestionId: string;
   let submissionId: string;
 
-  const teacherId = 'teacher-1';
+  const teacherId = 'joachim.vanmeirvenne@atheneumkapellen.be';
 
   afterAll(async () => {
     await new Promise<void>((resolve) => {

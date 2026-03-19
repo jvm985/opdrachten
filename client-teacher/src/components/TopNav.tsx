@@ -26,8 +26,9 @@ export const TopNav: React.FC<TopNavProps> = ({ isEditing, user }) => {
             <button className={`filter-item ${window.location.pathname === '/teacher' ? 'active' : ''}`} onClick={() => navigate('/teacher')}>Toetsen</button>
             <button className={`filter-item ${window.location.pathname.startsWith('/teacher/bank') ? 'active' : ''}`} onClick={() => navigate('/teacher/bank')}>Vraagbank</button>
             {user.email === 'joachim.vanmeirvenne@atheneumkapellen.be' && (
-              <button className={`filter-item ${window.location.pathname === '/teacher/students' ? 'active' : ''}`} onClick={() => navigate('/teacher/students')}>Leerlingen</button>
+              <button className={`filter-item ${window.location.pathname === '/teacher/users' ? 'active' : ''}`} onClick={() => navigate('/teacher/users')}>Beheer</button>
             )}
+
           </div>
         )}
         </div>

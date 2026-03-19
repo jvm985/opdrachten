@@ -5,7 +5,7 @@ async function seed() {
   console.log('🌱 Start seeding nieuwe demo...');
   await initDb();
 
-  const teacherId = 'teacher-1'; // Joachim
+  const teacherId = 'joachim.vanmeirvenne@atheneumkapellen.be'; // Joachim
 
   const examKey = 'DEMO2026';
   const questions = [

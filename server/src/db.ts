@@ -53,22 +53,24 @@ export const initDb = () => {
       `, (err: any) => {
         if (err) console.error('CREATE TABLE users Error:', err);
         db.run('ALTER TABLE users ADD COLUMN email TEXT', () => {});
+        db.run('ALTER TABLE users ADD COLUMN first_name TEXT', () => {});
+        db.run('ALTER TABLE users ADD COLUMN last_name TEXT', () => {});
         db.run('ALTER TABLE users ADD COLUMN two_factor_secret TEXT', () => {});
         db.run('ALTER TABLE users ADD COLUMN two_factor_enabled INTEGER DEFAULT 0', () => {});
         db.run('ALTER TABLE users ADD COLUMN webauthn_devices TEXT', () => {});
         
         const stmt = db.prepare('INSERT OR IGNORE INTO users (id, email, password, role, name) VALUES (?, ?, ?, ?, ?)');
-        stmt.run('t1', 'docent@test.com', 'welkom01', 'teacher', 'Docent Test');
-        stmt.run('s1', 'student@test.com', 'welkom01', 'student', 'Student Test');
+        stmt.run('docent@test.com', 'docent@test.com', 'welkom01', 'teacher', 'Docent Test');
+        stmt.run('student@test.com', 'student@test.com', 'welkom01', 'student', 'Student Test');
         
         // Atheneum Kapellen Docenten
-        stmt.run('jvm-1', 'joachim.van.mechelen@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Joachim Van Mechelen');
-        stmt.run('jvm-2', 'joachim.vanmeirvenne@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Joachim Van Meirvenne');
-        stmt.run('teacher-2', 'wim.benda@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Wim Benda');
-        stmt.run('teacher-3', 'cedric.denhond@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Cedric Den Hond');
-        stmt.run('teacher-4', 'marc.vaneijmeren@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Marc Van Eijmeren');
-        stmt.run('teacher-5', 'kurt.vermeiren@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Kurt Vermeiren');
-        stmt.run('teacher-6', 'laura.vanaert@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Laura Van Aert');
+        stmt.run('joachim.van.mechelen@atheneumkapellen.be', 'joachim.van.mechelen@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Joachim Van Mechelen');
+        stmt.run('joachim.vanmeirvenne@atheneumkapellen.be', 'joachim.vanmeirvenne@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Joachim Van Meirvenne');
+        stmt.run('wim.benda@atheneumkapellen.be', 'wim.benda@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Wim Benda');
+        stmt.run('cedric.denhond@atheneumkapellen.be', 'cedric.denhond@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Cedric Den Hond');
+        stmt.run('marc.vaneijmeren@atheneumkapellen.be', 'marc.vaneijmeren@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Marc Van Eijmeren');
+        stmt.run('kurt.vermeiren@atheneumkapellen.be', 'kurt.vermeiren@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Kurt Vermeiren');
+        stmt.run('laura.vanaert@atheneumkapellen.be', 'laura.vanaert@atheneumkapellen.be', 'GoogleAuthOnly', 'teacher', 'Laura Van Aert');
         
         stmt.finalize();
       });

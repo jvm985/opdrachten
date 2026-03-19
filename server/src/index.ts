@@ -207,28 +207,61 @@ app.delete('/api/exams/:id', (req, res) => {
 });
 
 app.get('/api/admin/teachers', (req, res) => {
-  db.all('SELECT id, name, email FROM users WHERE role = "teacher" ORDER BY name', [], (err, rows) => {
+  db.all('SELECT id, name, first_name, last_name, email FROM users WHERE role = "teacher" ORDER BY last_name, first_name', [], (err, rows) => {
     res.json(rows || []);
   });
 });
 
+app.post('/api/admin/teachers', (req, res) => {
+  const { first_name, last_name, email } = req.body;
+  const fullName = `${first_name} ${last_name}`.trim();
+  // Gebruik email als ID zoals gevraagd
+  db.run('INSERT INTO users (id, email, first_name, last_name, name, role, password) VALUES (?, ?, ?, ?, ?, ?, ?)', 
+    [email, email, first_name, last_name, fullName, 'teacher', 'GoogleAuthOnly'], function(err) {
+    if (err) return res.status(500).json({ error: 'DB Error of e-mail bestaat al' });
+    res.json({ id: email, email, first_name, last_name, name: fullName });
+  });
+});
+
+app.put('/api/admin/teachers/:id', (req, res) => {
+  const { first_name, last_name, email } = req.body;
+  const fullName = `${first_name} ${last_name}`.trim();
+  db.run('UPDATE users SET first_name = ?, last_name = ?, name = ?, email = ? WHERE id = ?', 
+    [first_name, last_name, fullName, email, req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: 'DB Error' });
+    res.json({ success: true });
+  });
+});
+
+app.delete('/api/admin/teachers/:id', (req, res) => {
+  // Beveiliging: verwijder jezelf niet
+  db.run('DELETE FROM users WHERE id = ? AND role = "teacher"', [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: 'DB Error' });
+    res.json({ success: true });
+  });
+});
+
 app.get('/api/admin/students', (req, res) => {
-  db.all('SELECT * FROM students ORDER BY klas, name', [], (err, rows) => {
+  db.all('SELECT * FROM students ORDER BY klas, last_name, first_name', [], (err, rows) => {
     res.json(rows || []);
   });
 });
 
 app.post('/api/admin/students', (req, res) => {
-  const { name, klas, email, photo_url } = req.body;
-  db.run('INSERT INTO students (name, klas, email, photo_url) VALUES (?, ?, ?, ?)', [name, klas, email, photo_url], function(err) {
+  const { first_name, last_name, klas, email, photo_url } = req.body;
+  const fullName = `${first_name} ${last_name}`.trim();
+  db.run('INSERT INTO students (name, first_name, last_name, klas, email, photo_url) VALUES (?, ?, ?, ?, ?, ?)', 
+    [fullName, first_name, last_name, klas, email, photo_url], function(err) {
     if (err) return res.status(500).json({ error: 'DB Error' });
-    res.json({ id: this.lastID, name, klas, email, photo_url });
+    res.json({ id: this.lastID, name: fullName, first_name, last_name, klas, email, photo_url });
   });
 });
 
 app.put('/api/admin/students/:id', (req, res) => {
-  const { name, klas, email, photo_url } = req.body;
-  db.run('UPDATE students SET name = ?, klas = ?, email = ?, photo_url = ? WHERE id = ?', [name, klas, email, photo_url, req.params.id], (err) => {
+  const { first_name, last_name, klas, email, photo_url } = req.body;
+  const fullName = `${first_name} ${last_name}`.trim();
+  db.run('UPDATE students SET name = ?, first_name = ?, last_name = ?, klas = ?, email = ?, photo_url = ? WHERE id = ?', 
+    [fullName, first_name, last_name, klas, email, photo_url, req.params.id], (err) => {
     if (err) return res.status(500).json({ error: 'DB Error' });
     res.json({ success: true });
   });
