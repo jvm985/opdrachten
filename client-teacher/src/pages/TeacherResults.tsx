@@ -562,11 +562,6 @@ export default function TeacherResults() {
           <div style={{ display: 'flex', gap: '12px' }}>
             <button className="btn btn-secondary" onClick={copyForClassroom} title="Kopieer voor spreadsheet/Classroom"><Copy size={18} /> Kopieer lijst</button>
             <button className="btn btn-secondary" onClick={exportCSV} title="Download CSV bestand"><FileDown size={18} /> CSV Export</button>
-            {user.hasClassroom && (
-              <button className="btn" style={{ background: '#1e8e3e' }} title="Synchroniseer met Google Classroom">
-                <GraduationCap size={18} /> Sync Classroom
-              </button>
-            )}
           </div>
         </header>
 

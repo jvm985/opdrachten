@@ -40,21 +40,11 @@ const generateEmail = (name: string) => {
 // --- API ---
 
 app.post('/api/auth/google', async (req, res) => {
-  const { token, role, isAccessToken, code } = req.body;
+  const { token, role, isAccessToken } = req.body;
   try {
     let email: string | undefined;
-    let refresh_token: string | undefined;
     
-    if (code) {
-      const response = await client.getToken({ code, redirect_uri: 'postmessage' });
-      const tokens = response.tokens;
-      const ticket = await client.verifyIdToken({
-        idToken: tokens.id_token!,
-        audience: '339058057860-i6ne31mqs27mqm2ulac7al9vi26pmgo1.apps.googleusercontent.com',
-      });
-      email = ticket.getPayload()?.email;
-      refresh_token = tokens.refresh_token || undefined;
-    } else if (isAccessToken) {
+    if (isAccessToken) {
       const infoRes = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${token}`);
       const info: any = await infoRes.json();
       email = info.email;
@@ -72,8 +62,7 @@ app.post('/api/auth/google', async (req, res) => {
     if (role === 'teacher') {
       db.get('SELECT * FROM users WHERE email = ? AND role = "teacher"', [email], (err, user: any) => {
         if (err || !user) return res.status(404).json({ error: 'Geen docent-account gevonden.' });
-        if (refresh_token) db.run('UPDATE users SET google_refresh_token = ? WHERE id = ?', [refresh_token, user.id]);
-        res.json({ id: user.id, email: user.email, name: user.name, role: 'teacher', hasClassroom: !!(user.google_refresh_token || refresh_token) });
+        res.json({ id: user.id, email: user.email, name: user.name, role: 'teacher' });
       });
     } else {
       db.get('SELECT * FROM students WHERE email = ?', [email], (err, student: any) => {

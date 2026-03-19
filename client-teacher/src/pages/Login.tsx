@@ -1,46 +1,35 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, GraduationCap } from 'lucide-react';
-import { useGoogleLogin } from '@react-oauth/google';
+import { LogIn } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
 
 export default function Login() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLoginResponse = async (res: Response) => {
-    const data = await res.json();
-    if (res.ok) {
-      sessionStorage.setItem('user', JSON.stringify(data));
-      navigate('/teacher');
-    } else {
-      setError(data.error || 'Google login mislukt');
+  const handleGoogleSuccess = async (response: any) => {
+    setError('');
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: response.credential, role: 'teacher' }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        sessionStorage.setItem('user', JSON.stringify(data));
+        navigate('/teacher');
+      } else {
+        setError(data.error || 'Google login mislukt');
+      }
+    } catch (e) { 
+      setError('Verbindingsfout met server');
+    } finally {
+      setIsLoading(false);
     }
   };
-
-  const login = useGoogleLogin({
-    onSuccess: async (codeResponse) => {
-      setError('');
-      setIsLoading(true);
-      try {
-        const res = await fetch('/api/auth/google', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            code: codeResponse.code, 
-            role: 'teacher' 
-          }),
-        });
-        await handleLoginResponse(res);
-      } catch (e) {
-        setError('Inloggen mislukt');
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    flow: 'auth-code',
-    scope: 'email profile openid https://www.googleapis.com/auth/classroom.courses.readonly https://www.googleapis.com/auth/classroom.coursework.me https://www.googleapis.com/auth/classroom.coursework.students',
-  });
 
   return (
     <div className="animate-up" style={{ padding: '100px 0', maxWidth: '400px', margin: '0 auto' }}>
@@ -59,26 +48,15 @@ export default function Login() {
           </div>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <button 
-            className="btn" 
-            onClick={() => login()}
-            disabled={isLoading}
-            style={{ width: '100%', height: '56px', fontSize: '17px', gap: '12px' }}
-          >
-            {isLoading ? (
-              'Bezig met inloggen...'
-            ) : (
-              <>
-                <GraduationCap size={22} />
-                Inloggen via Google
-              </>
-            )}
-          </button>
-          
-          <p className="text-muted" style={{ fontSize: '13px', textAlign: 'center', marginTop: '12px' }}>
-            Door in te loggen geef je toestemming voor synchronisatie met Google Classroom.
-          </p>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 0' }}>
+          {isLoading ? (
+            <div style={{ fontSize: '15px', fontWeight: '600', color: 'var(--system-blue)' }}>Bezig met verifiëren...</div>
+          ) : (
+            <GoogleLogin 
+              onSuccess={handleGoogleSuccess} 
+              onError={() => setError('Google login mislukt')}
+            />
+          )}
         </div>
 
         <div style={{ marginTop: '40px', paddingTop: '32px', borderTop: '1px solid var(--system-border-light)', textAlign: 'center' }}>
