@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogIn, GraduationCap } from 'lucide-react';
-import { GoogleLogin, useGoogleLogin } from '@react-oauth/google';
+import { useGoogleLogin } from '@react-oauth/google';
 
 export default function Login() {
   const [error, setError] = useState('');
@@ -18,24 +18,7 @@ export default function Login() {
     }
   };
 
-  const handleStandardLogin = async (response: any) => {
-    setError('');
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/auth/google', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: response.credential, role: 'teacher' }),
-      });
-      await handleLoginResponse(res);
-    } catch (e) { 
-      setError('Verbindingsfout');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const loginWithClassroom = useGoogleLogin({
+  const login = useGoogleLogin({
     onSuccess: async (codeResponse) => {
       setError('');
       setIsLoading(true);
@@ -50,51 +33,56 @@ export default function Login() {
         });
         await handleLoginResponse(res);
       } catch (e) {
-        setError('Classroom koppeling mislukt');
+        setError('Inloggen mislukt');
       } finally {
         setIsLoading(false);
       }
     },
     flow: 'auth-code',
-    scope: 'https://www.googleapis.com/auth/classroom.courses.readonly https://www.googleapis.com/auth/classroom.coursework.me https://www.googleapis.com/auth/classroom.coursework.students',
+    scope: 'email profile openid https://www.googleapis.com/auth/classroom.courses.readonly https://www.googleapis.com/auth/classroom.coursework.me https://www.googleapis.com/auth/classroom.coursework.students',
   });
 
   return (
     <div className="animate-up" style={{ padding: '100px 0', maxWidth: '400px', margin: '0 auto' }}>
       <div className="card" style={{ padding: '40px' }}>
         <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
-          <LogIn size={48} color="var(--system-blue)" style={{ marginBottom: '1rem' }} />
+          <div style={{ background: 'var(--system-blue-light)', width: '80px', height: '80px', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
+            <LogIn size={40} color="var(--system-blue)" />
+          </div>
           <h1 style={{ fontSize: '32px', marginBottom: '12px' }}>Docent Login</h1>
           <p className="text-muted">Meld je aan met je school-account</p>
         </div>
 
-        {error && <div style={{ background: '#fef2f2', color: 'red', padding: '12px', borderRadius: '8px', marginBottom: '24px', fontSize: '14px', textAlign: 'center' }}>{error}</div>}
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
-          <GoogleLogin 
-            onSuccess={handleStandardLogin} 
-            onError={() => setError('Google login mislukt')}
-          />
-          
-          <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '12px', margin: '10px 0' }}>
-            <div style={{ flex: 1, height: '1px', background: 'var(--system-border-light)' }}></div>
-            <span style={{ fontSize: '12px', color: 'var(--system-secondary-text)', fontWeight: '600' }}>OF</span>
-            <div style={{ flex: 1, height: '1px', background: 'var(--system-border-light)' }}></div>
+        {error && (
+          <div style={{ background: '#fef2f2', color: 'var(--system-error)', padding: '16px', borderRadius: '12px', marginBottom: '24px', fontSize: '14px', textAlign: 'center', border: '1px solid #fee2e2' }}>
+            {error}
           </div>
+        )}
 
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <button 
             className="btn" 
-            onClick={() => loginWithClassroom()}
+            onClick={() => login()}
             disabled={isLoading}
-            style={{ width: '100%', background: '#1e8e3e', gap: '12px' }}
+            style={{ width: '100%', height: '56px', fontSize: '17px', gap: '12px' }}
           >
-            <GraduationCap size={20} />
-            {isLoading ? 'Bezig...' : 'Login + Classroom Sync'}
+            {isLoading ? (
+              'Bezig met inloggen...'
+            ) : (
+              <>
+                <GraduationCap size={22} />
+                Inloggen via Google
+              </>
+            )}
           </button>
+          
+          <p className="text-muted" style={{ fontSize: '13px', textAlign: 'center', marginTop: '12px' }}>
+            Door in te loggen geef je toestemming voor synchronisatie met Google Classroom.
+          </p>
         </div>
 
-        <div style={{ marginTop: '40px', paddingTop: '32px', borderTop: '1px solid var(--system-border)', textAlign: 'center' }}>
-          <p className="text-muted" style={{ fontSize: '12px' }}>Voor automatische synchronisatie van cijfers kies je de Classroom optie.</p>
+        <div style={{ marginTop: '40px', paddingTop: '32px', borderTop: '1px solid var(--system-border-light)', textAlign: 'center' }}>
+          <p className="text-muted" style={{ fontSize: '12px', fontWeight: '500' }}>Toegang alleen voor @atheneumkapellen.be accounts.</p>
         </div>
       </div>
     </div>
