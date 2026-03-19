@@ -132,7 +132,16 @@ export default function TeacherResults() {
       ]);
       
       if (!examRes.ok || !subsRes.ok) {
-        throw new Error('Server fout bij ophalen data');
+        const errorText = await (examRes.status !== 200 ? examRes.text() : subsRes.text());
+        console.error('Server error response:', errorText);
+        throw new Error(`Server fout (${examRes.status}/${subsRes.status})`);
+      }
+
+      const contentType1 = examRes.headers.get("content-type");
+      const contentType2 = subsRes.headers.get("content-type");
+      
+      if (!contentType1?.includes("application/json") || !contentType2?.includes("application/json")) {
+        throw new Error("Server stuurde geen JSON terug. Mogelijk is de sessie verlopen of de URL fout.");
       }
 
       const examData: Exam = await examRes.json();
