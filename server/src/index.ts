@@ -185,6 +185,27 @@ app.get('/api/teacher/trashed-exams', (req, res) => {
   });
 });
 
+app.get('/api/teacher/shared-exams', (req, res) => {
+  const { teacherId } = req.query;
+  db.all(`
+    SELECT e.*, u.name as teacher_name
+    FROM exams e
+    JOIN users u ON e.teacher_id = u.id
+    WHERE e.is_shared = 1 AND e.teacher_id != ? AND e.is_deleted = 0
+    ORDER BY e.created_at DESC`, [teacherId], (err, rows: any[]) => {
+    const result = (rows || []).map(r => ({ 
+      ...r, questions: JSON.parse(r.questions),
+      labels: r.labels ? JSON.parse(r.labels) : [],
+      isGraded: !!r.is_graded,
+      requireFullscreen: !!r.require_fullscreen,
+      detectTabSwitch: !!r.detect_tab_switch,
+      isShared: true,
+      teacherName: r.teacher_name
+    }));
+    res.json(result);
+  });
+});
+
 app.post('/api/exams/:id/restore', (req, res) => {
   db.run('UPDATE exams SET is_deleted = 0 WHERE id = ?', [req.params.id], (err) => {
     if (err) return res.status(500).json({ error: 'DB Error' });
