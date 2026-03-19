@@ -1,8 +1,8 @@
 import sqlite3 from 'sqlite3';
 import path from 'path';
 
-// Gebruik een pad relatief aan de huidige directory om overal te werken (Docker, lokaal, etc.)
-const dbPath = path.resolve(__dirname, '../../database.sqlite');
+// Gebruik process.cwd() om altijd de root van het project/container te vinden
+const dbPath = path.resolve(process.cwd(), 'database.sqlite');
 console.log('Database path:', dbPath);
 export const db = new sqlite3.Database(dbPath);
 
