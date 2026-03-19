@@ -1,9 +1,14 @@
 #!/bin/bash
 
 echo "🔄 Pulling latest code from GitHub..."
-git pull origin main
+# Opmerking: git reset wordt nu al aangeroepen door full_deploy.sh
 
-echo "🐳 Starting Docker containers..."
+echo "🐳 Restarting Docker containers (Safe mode)..."
+# Stop en verwijder containers geforceerd om 'ContainerConfig' bug te voorkomen
+sudo docker-compose down --remove-orphans
+sudo docker rm -f exam-api exam-frontend || true
+
+# Start alles schoon op
 sudo docker-compose up -d --build
 
 echo "✅ Deployment finished successfully!"
