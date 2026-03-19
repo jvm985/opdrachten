@@ -5,7 +5,7 @@ services:
     expose:
       - "3001"
     volumes:
-      - ./server/database.sqlite:/app/database.sqlite
+      - ./server/data:/app/data
       - ./server/public/photos:/app/public/photos
     environment:
       - NODE_ENV=production

@@ -9,6 +9,7 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
+RUN mkdir -p data public/photos && chmod -R 777 data public/photos
 RUN npm run build
 
 EXPOSE 3001
