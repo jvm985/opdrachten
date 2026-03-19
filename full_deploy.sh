@@ -41,6 +41,6 @@ echo "🚀 3. Pushen naar GitHub..."
 git push origin main
 
 echo "🌐 4. Verbinding maken met productie server ($SERVER)..."
-ssh $USER@$SERVER "cd $REMOTE_PATH && ./deploy.sh"
+ssh $USER@$SERVER "cd $REMOTE_PATH && sudo git fetch origin && sudo git reset --hard origin/main && ./deploy.sh"
 
 echo "✨ 5. Full Deploy voltooid!"
