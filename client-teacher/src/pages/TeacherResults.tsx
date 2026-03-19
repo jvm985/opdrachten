@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, User, List, Table as TableIcon, CheckCircle, XCircle, MapPin, Save, Copy, FileDown, GraduationCap } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, User, List, Table as TableIcon, CheckCircle, XCircle, MapPin, Save, Copy, FileDown } from 'lucide-react';
 import { TopNav } from '../components/TopNav';
 import type { Question, Exam, Submission } from '../types';
 
