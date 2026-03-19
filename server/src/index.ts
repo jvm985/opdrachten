@@ -129,6 +129,12 @@ app.put('/api/exams/:id', (req, res) => {
   );
 });
 
+app.get('/api/debug/list-all-ids', (req, res) => {
+  db.all('SELECT DISTINCT teacher_id FROM exams', [], (err, rows) => {
+    res.json(rows || []);
+  });
+});
+
 app.get('/api/admin/migrate-ids-prod', (req, res) => {
   const targetEmail = 'joachim.vanmeirvenne@atheneumkapellen.be';
   db.run(`UPDATE exams SET teacher_id = ? WHERE teacher_id = 'teacher-1' OR teacher_id = 'jvm-2' OR teacher_id = 't1'`, [targetEmail], function(err) {
