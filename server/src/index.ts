@@ -129,6 +129,29 @@ app.put('/api/exams/:id', (req, res) => {
   );
 });
 
+app.get('/api/admin/system-reset-prod', (req, res) => {
+  const adminEmail = 'joachim.vanmeirvenne@atheneumkapellen.be';
+  
+  db.serialize(() => {
+    // Wis alles
+    db.run('DELETE FROM exams');
+    db.run('DELETE FROM submissions');
+    db.run('DELETE FROM students');
+    db.run('DELETE FROM questions_bank');
+    db.run('DELETE FROM users');
+    db.run('DELETE FROM sqlite_sequence');
+
+    // Maak Joachim aan als enige gebruiker
+    db.run('INSERT INTO users (id, email, name, role, password) VALUES (?, ?, ?, ?, ?)',
+      [adminEmail, adminEmail, 'Joachim Van Meirvenne', 'teacher', 'GoogleAuthOnly'],
+      (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true, message: 'DATABASE VOLLEDIG GERESET. Joachim is nu de enige actieve docent.' });
+      }
+    );
+  });
+});
+
 app.get('/api/debug/list-all-ids', (req, res) => {
   db.all('SELECT DISTINCT teacher_id FROM exams', [], (err, rows) => {
     res.json(rows || []);

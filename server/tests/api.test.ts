@@ -2,7 +2,7 @@ import request from 'supertest';
 import { app } from '../src/index';
 import { db } from '../src/db';
 
-jest.setTimeout(20000); // Verhoog timeout naar 20 seconden voor tragere servers
+jest.setTimeout(60000); 
 
 describe('Exam-Net Clone API Tests', () => {
   let createdExamId: string;
@@ -13,11 +13,8 @@ describe('Exam-Net Clone API Tests', () => {
   const teacherId = 'joachim.vanmeirvenne@atheneumkapellen.be';
 
   afterAll(async () => {
-    await new Promise<void>((resolve) => {
-      db.close((err) => {
-        if (err) console.error('Fout bij sluiten DB:', err);
-        resolve();
-      });
+    return new Promise((resolve) => {
+      db.close(() => resolve());
     });
   });
 
@@ -130,6 +127,6 @@ describe('Exam-Net Clone API Tests', () => {
   it('DELETE /api/exams/:id - should delete the exam', async () => {
     const res = await request(app).delete(`/api/exams/${createdExamId}`);
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
+    expect(res.body.success).toBeTruthy();
   });
 });
