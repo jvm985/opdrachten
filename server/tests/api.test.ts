@@ -13,7 +13,7 @@ describe('Exam-Net Clone API Tests', () => {
   const teacherId = 'joachim.vanmeirvenne@atheneumkapellen.be';
 
   afterAll(async () => {
-    return new Promise((resolve) => {
+    return new Promise<void>((resolve) => {
       db.close(() => resolve());
     });
   });
