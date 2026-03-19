@@ -5,8 +5,8 @@ services:
     expose:
       - "3001"
     volumes:
-      - ./server/data:/app/data
-      - ./server/public/photos:/app/public/photos
+      - /home/joachim/apps/opdrachten/server/data:/app/data
+      - /home/joachim/apps/opdrachten/server/public/photos:/app/public/photos
     environment:
       - NODE_ENV=production
     restart: always
