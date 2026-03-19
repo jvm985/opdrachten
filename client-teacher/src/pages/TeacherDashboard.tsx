@@ -80,6 +80,12 @@ export default function TeacherDashboard() {
     const socket = io();
     socket.on('submission_received', ({ examId }) => {
       setExams(prev => prev.map(e => e.id === examId ? { ...e, submissionCount: e.submissionCount + 1, hasSubmissions: true } : e));
+      if (isAdmin) fetchAllExams();
+    });
+
+    socket.on('exam_created', () => {
+      if (isAdmin) fetchAllExams();
+      fetchSharedExams();
     });
 
     return () => {
@@ -216,6 +222,7 @@ export default function TeacherDashboard() {
       if (res.ok) {
         setIsEditing(false);
         fetchExams();
+        if (isAdmin) fetchAllExams();
       }
     } catch (e) { console.error(e); }
     finally { setIsLoading(false); }
@@ -241,7 +248,10 @@ export default function TeacherDashboard() {
     if (!confirm('Toets naar prullenbak verplaatsen?')) return;
     try {
       const res = await fetch(`/api/exams/${id}`, { method: 'DELETE' });
-      if (res.ok) fetchExams();
+      if (res.ok) {
+        fetchExams();
+        if (isAdmin) fetchAllExams();
+      }
     } catch (e) { console.error(e); }
   };
 
@@ -262,7 +272,10 @@ export default function TeacherDashboard() {
           isShared: false
         })
       });
-      if (res.ok) fetchExams();
+      if (res.ok) {
+        fetchExams();
+        if (isAdmin) fetchAllExams();
+      }
     } catch (e) { console.error(e); }
   };
 

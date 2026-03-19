@@ -109,6 +109,7 @@ app.post('/api/exams', (req, res) => {
     [examId, teacherId, title, examKey, JSON.stringify(questions), JSON.stringify(labels || []), type || 'examen', isGraded ? 1 : 0, requireFullscreen ? 1 : 0, detectTabSwitch ? 1 : 0, isShared ? 1 : 0],
     (err) => {
       if (err) return res.status(500).json({ error: 'DB Error' });
+      io.emit('exam_created'); // Breng admins/docenten op de hoogte
       res.json({ title, examKey, id: examId });
     }
   );
@@ -126,6 +127,21 @@ app.put('/api/exams/:id', (req, res) => {
       });
     }
   );
+});
+
+app.get('/api/admin/migrate-ids-prod', (req, res) => {
+  const targetEmail = 'joachim.vanmeirvenne@atheneumkapellen.be';
+  db.run(`UPDATE exams SET teacher_id = ? WHERE teacher_id = 'teacher-1' OR teacher_id = 'jvm-2' OR teacher_id = 't1'`, [targetEmail], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true, message: `Migration complete. Updated ${this.changes} exams to ${targetEmail}.` });
+  });
+});
+
+app.get('/api/debug/my-exams', (req, res) => {
+  const { email } = req.query;
+  db.all('SELECT * FROM exams WHERE teacher_id = ?', [email], (err, rows) => {
+    res.json({ email, count: rows?.length || 0, exams: rows });
+  });
 });
 
 app.get('/api/teacher/exams', (req, res) => {
