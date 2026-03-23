@@ -496,11 +496,13 @@ export default function StudentExam() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           examId: exId,
+          studentId: sessionStorage.getItem('studentEmail'),
           name,
           klas: sessionStorage.getItem('studentKlas'),
           answers: finalAnswers
-        }),
+        })
       });
+
       if (res.ok) {
         setIsSubmitted(true);
         isSubmittedRef.current = true;

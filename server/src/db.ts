@@ -38,7 +38,6 @@ export const initDb = async () => {
       )
     `);
     
-    // Altijd kolommen proberen toe te voegen (negeert fout als ze al bestaan)
     await runAsync('ALTER TABLE exams ADD COLUMN labels TEXT').catch(() => {});
     await runAsync("ALTER TABLE exams ADD COLUMN type TEXT DEFAULT 'examen'").catch(() => {});
     await runAsync('ALTER TABLE exams ADD COLUMN is_graded INTEGER DEFAULT 1').catch(() => {});
@@ -50,7 +49,7 @@ export const initDb = async () => {
     // Users table
     await runAsync(`
       CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
+        id TEXT PRIMARY KEY, -- Email address
         email TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
         role TEXT NOT NULL,
@@ -77,6 +76,7 @@ export const initDb = async () => {
       CREATE TABLE IF NOT EXISTS submissions (
         id TEXT PRIMARY KEY,
         exam_id TEXT NOT NULL,
+        student_id TEXT, -- Student email address
         student_name TEXT NOT NULL,
         student_klas TEXT,
         answers TEXT NOT NULL,
@@ -84,12 +84,13 @@ export const initDb = async () => {
         submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    await runAsync('ALTER TABLE submissions ADD COLUMN student_id TEXT').catch(() => {});
 
     // Questions bank
     await runAsync(`
       CREATE TABLE IF NOT EXISTS questions_bank (
         id TEXT PRIMARY KEY,
-        teacher_id TEXT NOT NULL,
+        teacher_id TEXT NOT NULL, -- Teacher email address
         type TEXT NOT NULL,
         text TEXT NOT NULL,
         points INTEGER NOT NULL,
@@ -103,7 +104,7 @@ export const initDb = async () => {
     // Students
     await runAsync(`
       CREATE TABLE IF NOT EXISTS students (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id TEXT PRIMARY KEY, -- Email address
         name TEXT NOT NULL,
         first_name TEXT,
         last_name TEXT,

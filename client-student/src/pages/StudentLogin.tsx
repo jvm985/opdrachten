@@ -31,6 +31,7 @@ export default function StudentLogin() {
       const data = await res.json();
       if (res.ok) {
         sessionStorage.setItem('studentName', data.name);
+        sessionStorage.setItem('studentEmail', data.id); // Dit is nu het e-mailadres
         sessionStorage.setItem('studentKlas', data.klas);
         sessionStorage.setItem('studentPhoto', data.photo_url || '');
         navigate(`/exam/${examKey.toUpperCase()}`);

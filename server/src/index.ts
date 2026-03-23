@@ -67,13 +67,15 @@ app.post('/api/auth/google', async (req, res) => {
     } else {
       db.get('SELECT * FROM students WHERE email = ?', [email], (err, student: any) => {
         if (student) {
-          res.json({ id: student.id, name: student.name, klas: student.klas, photo_url: student.photo_url, role: 'student' });
+          // Gebruik email als ID
+          res.json({ id: student.email, name: student.name, klas: student.klas, photo_url: student.photo_url, role: 'student' });
         } else {
           db.all('SELECT * FROM students', [], (err, allStudents: any[]) => {
             const matched = allStudents.find(s => generateEmail(s.name) === email);
             if (matched) {
-              db.run('UPDATE students SET email = ? WHERE id = ?', [email, matched.id]);
-              res.json({ id: matched.id, name: matched.name, klas: matched.klas, photo_url: matched.photo_url, role: 'student' });
+              // Bij match, koppel email als ID en veld
+              db.run('UPDATE students SET email = ?, id = ? WHERE id = ?', [email, email, matched.id]);
+              res.json({ id: email, name: matched.name, klas: matched.klas, photo_url: matched.photo_url, role: 'student' });
             } else {
               res.status(404).json({ error: 'Je staat niet in de leerlingenlijst.' });
             }
@@ -261,6 +263,14 @@ app.delete('/api/exams/:id', (req, res) => {
   });
 });
 
+app.put('/api/admin/exams/:id/reassign', (req, res) => {
+  const { teacherId } = req.body;
+  db.run('UPDATE exams SET teacher_id = ? WHERE id = ?', [teacherId, req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: 'DB Error' });
+    res.json({ success: true });
+  });
+});
+
 app.get('/api/admin/teachers', (req, res) => {
   db.all('SELECT id, name, first_name, last_name, email FROM users WHERE role = "teacher" ORDER BY last_name, first_name', [], (err, rows) => {
     res.json(rows || []);
@@ -346,18 +356,26 @@ app.post('/api/admin/import-students-xlsx', upload.single('file'), async (req, r
     let importedCount = 0;
     for (const row of rawData) {
       const keys = Object.keys(row);
-      const findVal = (target: string) => {
-        const key = keys.find(k => k.trim().toLowerCase() === target.toLowerCase());
+      const findVal = (targets: string[]) => {
+        const key = keys.find(k => targets.some(t => k.trim().toLowerCase().includes(t.toLowerCase())));
         return key ? row[key] : '';
       };
-      const voornaam = (findVal('Voornaam') || '').toString().trim();
-      const achternaam = (findVal('Naam') || '').toString().trim();
-      const klas = (findVal('Klas- of groepsnaam') || '').toString().trim();
+
+      const voornaam = (findVal(['First Name', 'Voornaam']) || '').toString().trim();
+      const achternaam = (findVal(['Last Name', 'Naam']) || '').toString().trim();
+      const email = (findVal(['Email Address', 'E-mail']) || '').toString().trim();
+      let klas = (findVal(['Org Unit Path', 'Klas- of groepsnaam']) || '').toString().trim();
+
+      if (klas.includes('/')) {
+        const parts = klas.split('/');
+        klas = parts[parts.length - 1];
+      }
+
       if (voornaam || achternaam) {
         const fullName = `${voornaam} ${achternaam}`.trim();
         await new Promise((resolve) => {
-          db.run('INSERT INTO students (name, first_name, last_name, klas) VALUES (?, ?, ?, ?)',
-            [fullName, voornaam, achternaam, klas], () => resolve(true));
+          db.run('INSERT INTO students (name, first_name, last_name, email, klas) VALUES (?, ?, ?, ?, ?)',
+            [fullName, voornaam, achternaam, email, klas], () => resolve(true));
         });
         importedCount++;
       }
@@ -654,10 +672,10 @@ app.put('/api/submissions/:id/scores', (req, res) => {
 });
 
 app.post('/api/submissions', (req, res) => {
-  const { examId, name, klas, answers } = req.body;
+  const { examId, studentId, name, klas, answers } = req.body;
   db.run(
-    'INSERT INTO submissions (id, exam_id, student_name, student_klas, answers) VALUES (?, ?, ?, ?, ?)',
-    [randomUUID(), examId, name, klas, JSON.stringify(answers || {})],
+    'INSERT INTO submissions (id, exam_id, student_id, student_name, student_klas, answers) VALUES (?, ?, ?, ?, ?, ?)',
+    [randomUUID(), examId, studentId, name, klas, JSON.stringify(answers || {})],
     (err) => {
       if (err) return res.status(500).json({ error: 'DB Error' });
       db.get('SELECT exam_key FROM exams WHERE id = ?', [examId], (err, row: any) => {
