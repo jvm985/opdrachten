@@ -3,6 +3,10 @@
 echo "🔄 Pulling latest code from GitHub..."
 # Opmerking: git reset wordt nu al aangeroepen door full_deploy.sh
 
+echo "🏗 Building frontends on production..."
+npm install --silent
+npm run build --silent
+
 echo "🐳 Restarting Docker containers (Safe mode)..."
 # Stop en verwijder containers geforceerd om 'ContainerConfig' bug te voorkomen
 sudo docker-compose down --remove-orphans
