@@ -159,6 +159,10 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
               }
               updates.content = q.content || '';
             }
+            if (newType === 'multi-true-false') {
+              updates.statements = q.statements || [{ id: crypto.randomUUID(), text: '', correctAnswer: 'Waar' }];
+              updates.points = (updates.statements || []).length;
+            }
             handleUpdateQuestion(q.id, updates);
           }} 
           disabled={hasSubmissions} 
@@ -166,7 +170,7 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
         >
           <option value="open">Open vraag</option><option value="multiple-choice">Meerkeuze</option><option value="true-false">Waar/Onwaar</option><option value="map">Blinde kaart</option>
           <option value="definitions">Definities</option><option value="matching">Paren</option><option value="ordering">Volgorde</option><option value="image-analysis">Afbeelding analyse</option>
-          <option value="timeline">Tijdlijn (Verbeterd)</option><option value="table-fill">Invultabel</option><option value="fill-blanks">Gatentekst</option>
+          <option value="timeline">Tijdlijn (Verbeterd)</option><option value="table-fill">Invultabel</option><option value="fill-blanks">Gatentekst</option><option value="multi-true-false">Juist of Fout (Lijst)</option>
         </select>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <input className="input" type="number" value={q.points} onChange={e => handleUpdateQuestion(q.id, { points: parseInt(e.target.value) || 0 })} min={0} style={{ borderRadius: '10px', flex: 1 }} />
@@ -346,6 +350,42 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {q.type === 'multi-true-false' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {(q.statements || []).map((s, idx) => (
+            <div key={s.id} style={{ display: 'flex', gap: '12px', background: 'white', padding: '16px', borderRadius: '16px', border: '1px solid var(--system-border)' }}>
+              <div style={{ flex: 1 }}>
+                <input className="input" value={s.text} onChange={e => {
+                  const newS = [...(q.statements || [])];
+                  newS[idx] = { ...newS[idx], text: e.target.value };
+                  handleUpdateQuestion(q.id, { statements: newS });
+                }} placeholder="Stelling..." style={{ border: 'none', background: 'var(--system-secondary-bg)', fontWeight: '600' }} />
+              </div>
+              <div style={{ display: 'flex', gap: '4px', background: 'var(--system-secondary-bg)', padding: '4px', borderRadius: '10px' }}>
+                <button className={`btn ${s.correctAnswer === 'Waar' ? '' : 'btn-secondary'}`} style={{ padding: '6px 12px', fontSize: '12px', border: 'none' }} onClick={() => {
+                  const newS = [...(q.statements || [])];
+                  newS[idx] = { ...newS[idx], correctAnswer: 'Waar' };
+                  handleUpdateQuestion(q.id, { statements: newS });
+                }}>Waar</button>
+                <button className={`btn ${s.correctAnswer === 'Onwaar' ? '' : 'btn-secondary'}`} style={{ padding: '6px 12px', fontSize: '12px', border: 'none' }} onClick={() => {
+                  const newS = [...(q.statements || [])];
+                  newS[idx] = { ...newS[idx], correctAnswer: 'Onwaar' };
+                  handleUpdateQuestion(q.id, { statements: newS });
+                }}>Onwaar</button>
+              </div>
+              <button className="btn btn-danger" onClick={() => {
+                const newS = (q.statements || []).filter((_, i) => i !== idx);
+                handleUpdateQuestion(q.id, { statements: newS, points: newS.length });
+              }}><X size={16}/></button>
+            </div>
+          ))}
+          <button className="btn btn-secondary" onClick={() => {
+            const newS = [...(q.statements || []), { id: crypto.randomUUID(), text: '', correctAnswer: 'Waar' as const }];
+            handleUpdateQuestion(q.id, { statements: newS, points: newS.length });
+          }} style={{ alignSelf: 'flex-start' }}><Plus size={16}/> Stelling toevoegen</button>
         </div>
       )}
 

@@ -5,7 +5,7 @@ export interface SubQuestion { id: string; text: string; points: number; correct
 
 export interface Question {
   id: string;
-  type: 'open' | 'multiple-choice' | 'true-false' | 'map' | 'definitions' | 'matching' | 'ordering' | 'image-analysis' | 'timeline' | 'table-fill' | 'fill-blanks';
+  type: 'open' | 'multiple-choice' | 'true-false' | 'map' | 'definitions' | 'matching' | 'ordering' | 'image-analysis' | 'timeline' | 'table-fill' | 'fill-blanks' | 'multi-true-false';
   text: string;
   content?: string;
   points: number;
@@ -18,6 +18,7 @@ export interface Question {
   pairs?: DefinitionPair[];
   matchingPairs?: MatchingPair[];
   orderItems?: string[];
+  statements?: { id: string; text: string; correctAnswer: 'Waar' | 'Onwaar'; }[]; // Voor multi-true-false
   totalBuckets?: number;
   startYear?: number;
   endYear?: number;

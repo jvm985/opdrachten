@@ -5,27 +5,32 @@ export interface SubQuestion { id: string; text: string; points: number; }
 
 export interface Question {
   id: string;
-  type: 'open' | 'multiple-choice' | 'true-false' | 'map' | 'definitions' | 'matching' | 'ordering' | 'image-analysis' | 'timeline' | 'table-fill' | 'fill-blanks';
+  type: 'open' | 'multiple-choice' | 'true-false' | 'map' | 'definitions' | 'matching' | 'ordering' | 'image-analysis' | 'timeline' | 'table-fill' | 'fill-blanks' | 'multi-true-false';
   text: string;
+  content?: string;
   points: number;
   options?: string[];
   correctAnswer: string;
   correctExplanation?: string;
+  explainIfFalse?: boolean;
   image?: string;
   locations?: Location[];
   pairs?: DefinitionPair[];
   matchingPairs?: MatchingPair[];
   orderItems?: string[];
-  orderDirection?: 'vertical' | 'horizontal';
-  subQuestions?: SubQuestion[];
-  tableData?: string[][];
-  tableConfig?: { interactiveCells: { r: number, c: number }[], mode: 'type' | 'drag', ignoreRowOrder?: boolean };
-  timelineData?: { id: string, text: string }[][];
+  statements?: { id: string; text: string; correctAnswer: 'Waar' | 'Onwaar'; }[]; // Voor multi-true-false
+  totalBuckets?: number;
   startYear?: number;
   endYear?: number;
-  totalBuckets?: number;
-  explainIfFalse?: boolean;
-  labels?: string[];
+  timelineData?: { id: string; text: string; }[][];
+  tableData?: string[][];
+  tableConfig?: {
+    mode: 'type' | 'drag';
+    interactiveCells: { r: number; c: number }[];
+    ignoreRowOrder?: boolean;
+  };
+  subQuestions?: SubQuestion[];
+  orderDirection?: 'vertical' | 'horizontal';
 }
 
 export interface Exam {
@@ -33,12 +38,8 @@ export interface Exam {
   title: string;
   exam_key: string;
   questions: Question[];
-  labels: string[];
-  type: 'taak' | 'toets' | 'examen' | 'formulier';
+  type?: string;
   isGraded: boolean;
   requireFullscreen: boolean;
   detectTabSwitch: boolean;
-  submissionCount: number;
-  hasSubmissions: boolean;
-  created_at: string;
 }

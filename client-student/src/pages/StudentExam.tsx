@@ -145,6 +145,50 @@ const QuestionRenderer = ({ q, answers, setAnswers, handleDragStart, handleDropM
         </div>
       )}
 
+      {q.type === 'multi-true-false' && (
+        <div style={{ background: 'white', borderRadius: '24px', border: '1px solid var(--system-border)', overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'var(--system-secondary-bg)', borderBottom: '1px solid var(--system-border)' }}>
+                <th style={{ padding: '20px 32px', textAlign: 'left', fontSize: '13px', fontWeight: '800', color: 'var(--system-secondary-text)', textTransform: 'uppercase' }}>Stelling</th>
+                <th style={{ padding: '20px 32px', textAlign: 'center', width: '240px', fontSize: '13px', fontWeight: '800', color: 'var(--system-secondary-text)', textTransform: 'uppercase' }}>Antwoord</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(q.statements || []).map((s: any) => (
+                <tr key={s.id} style={{ borderBottom: '1px solid var(--system-secondary-bg)' }}>
+                  <td style={{ padding: '24px 32px', fontSize: '17px', fontWeight: '500', lineHeight: '1.4' }}>{s.text}</td>
+                  <td style={{ padding: '20px 32px' }}>
+                    <div style={{ display: 'flex', gap: '4px', background: 'var(--system-secondary-bg)', padding: '4px', borderRadius: '12px' }}>
+                      <button 
+                        className={`btn ${answers[q.id]?.[s.id] === 'Waar' ? '' : 'btn-secondary'}`} 
+                        style={{ flex: 1, height: '40px', fontSize: '14px', border: 'none', borderRadius: '8px' }}
+                        onClick={() => setAnswers((prev: any) => ({
+                          ...prev,
+                          [q.id]: { ...(prev[q.id] || {}), [s.id]: 'Waar' }
+                        }))}
+                      >
+                        Waar
+                      </button>
+                      <button 
+                        className={`btn ${answers[q.id]?.[s.id] === 'Onwaar' ? '' : 'btn-secondary'}`} 
+                        style={{ flex: 1, height: '40px', fontSize: '14px', border: 'none', borderRadius: '8px', background: answers[q.id]?.[s.id] === 'Onwaar' ? 'var(--system-error)' : '' }}
+                        onClick={() => setAnswers((prev: any) => ({
+                          ...prev,
+                          [q.id]: { ...(prev[q.id] || {}), [s.id]: 'Onwaar' }
+                        }))}
+                      >
+                        Onwaar
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {q.type === 'image-analysis' && (
         <div>
           <img src={q.image} style={{ width: '100%', borderRadius: '24px', marginBottom: '40px', boxShadow: 'var(--shadow-lg)' }} />

@@ -95,6 +95,14 @@ export default function TeacherResults() {
         if (totalBlanks === 0) return 0;
         return parseFloat(((correctCount / totalBlanks) * q.points).toFixed(2));
       }
+      case 'multi-true-false': {
+        if (!q.statements || !answer) return 0;
+        let correctCount = 0;
+        q.statements.forEach(s => {
+          if (answer[s.id] === s.correctAnswer) correctCount++;
+        });
+        return parseFloat(((correctCount / q.statements.length) * q.points).toFixed(2));
+      }
       default: return null;
     }
   };
@@ -375,6 +383,46 @@ export default function TeacherResults() {
         </div>
       );
     }
+    if (q.type === 'multi-true-false') {
+      return (
+        <div style={{ background: 'white', borderRadius: '16px', border: '1px solid var(--system-border)', overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+            <thead>
+              <tr style={{ background: '#f5f5f7', borderBottom: '1px solid #eee' }}>
+                <th style={{ padding: '12px 20px', textAlign: 'left' }}>Stelling</th>
+                <th style={{ padding: '12px 20px', textAlign: 'center', width: '150px' }}>Antwoord</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(q.statements || []).map((s: any) => {
+                const studentVal = answer?.[s.id];
+                const isCorrect = studentVal === s.correctAnswer;
+                return (
+                  <tr key={s.id} style={{ borderBottom: '1px solid #f5f5f7' }}>
+                    <td style={{ padding: '12px 20px' }}>{s.text}</td>
+                    <td style={{ padding: '12px 20px', textAlign: 'center' }}>
+                      <span style={{ 
+                        display: 'inline-block', 
+                        padding: '4px 12px', 
+                        borderRadius: '6px',
+                        background: studentVal ? (isCorrect ? '#f0fdf4' : '#fff1f2') : '#f5f5f7',
+                        color: studentVal ? (isCorrect ? '#166534' : '#991b1b') : '#86868b',
+                        fontWeight: '700',
+                        border: '1px solid',
+                        borderColor: studentVal ? (isCorrect ? '#22c55e' : '#ef4444') : '#d2d2d7'
+                      }}>
+                        {studentVal || 'Geen'}
+                        {!isCorrect && studentVal && <span style={{ fontSize: '10px', display: 'block', color: 'var(--system-blue)' }}>Correct: {s.correctAnswer}</span>}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
     return <div style={{ fontSize: '17px', whiteSpace: 'pre-wrap' }}>{typeof answer === 'string' ? answer : <pre style={{ fontSize: '12px' }}>{JSON.stringify(answer, null, 2)}</pre>}</div>;
   };
 
@@ -525,6 +573,25 @@ export default function TeacherResults() {
                       <strong>Modelantwoord:</strong> {q.correctExplanation}
                     </div>
                   )}
+                </div>
+              ) : q.type === 'multi-true-false' ? (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                    <thead>
+                      <tr style={{ background: '#0066cc', color: 'white' }}>
+                        <th style={{ padding: '8px', textAlign: 'left' }}>Stelling</th>
+                        <th style={{ padding: '8px', textAlign: 'center' }}>Correct</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {q.statements?.map(s => (
+                        <tr key={s.id} style={{ borderBottom: '1px solid #eee' }}>
+                          <td style={{ padding: '8px' }}>{s.text}</td>
+                          <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{s.correctAnswer}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               ) : q.type === 'map' ? (
                 <div style={{ position: 'relative', width: '200px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #cce3ff' }}>
