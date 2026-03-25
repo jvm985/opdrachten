@@ -50,6 +50,7 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
     } else {
       newList = [...current, { r, c }];
     }
+    // Punten zijn ALTIJD gelijk aan aantal cellen
     handleUpdateQuestion(q.id, { 
       tableConfig: { ...q.tableConfig, mode: q.tableConfig?.mode || 'type', interactiveCells: newList },
       points: newList.length
