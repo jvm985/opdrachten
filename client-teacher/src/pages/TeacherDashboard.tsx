@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
-import { Plus, Trash2, Edit3, ArrowLeft, Save, X, Database, Search, Copy, Eye, Printer, Play, BarChart3, MoreVertical, Lock, Share2, Users, Layout, LayoutList } from 'lucide-react';
+import { Plus, Trash2, Edit3, ArrowLeft, Save, X, Database, Search, Copy, Eye, Printer, Play, BarChart3, MoreVertical, Lock, Share2, Users, Layout, LayoutList, FileJson, Upload } from 'lucide-react';
 import { TopNav } from '../components/TopNav';
 import { QuestionEditor } from '../components/QuestionEditor';
 import type { Question, Exam } from '../types';
@@ -292,6 +292,68 @@ export default function TeacherDashboard() {
 
   const handleQuickPreview = (exam: Exam) => {
     window.open(`https://student.irishof.cloud/exam/${exam.exam_key}?preview=true`, '_blank');
+  };
+
+  const handleExportJSON = async (exam: Exam) => {
+    try {
+      const res = await fetch(`/api/exams/${exam.id}/submissions`);
+      const submissions = await safeJson(res);
+      const data = {
+        version: '1.0',
+        exported_at: new Date().toISOString(),
+        exam: exam,
+        submissions: submissions
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Toets_${exam.title.replace(/\s+/g, '_')}_met_inzendingen.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      alert('Fout bij exporteren');
+    }
+  };
+
+  const handleImportJSON = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const data = JSON.parse(event.target?.result as string);
+        if (!data.exam) throw new Error('Ongeldig bestandsformaat');
+
+        setIsLoading(true);
+        const res = await fetch('/api/exams/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            teacherId: user.id,
+            exam: data.exam,
+            submissions: data.submissions
+          })
+        });
+
+        if (res.ok) {
+          alert('Examen en inzendingen succesvol geïmporteerd!');
+          fetchExams();
+          if (isAdmin) fetchAllExams();
+        } else {
+          alert('Fout bij importeren');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Fout bij het lezen van het JSON bestand: ' + (err as Error).message);
+      } finally {
+        setIsLoading(false);
+        e.target.value = ''; // Reset input
+      }
+    };
+    reader.readAsText(file);
   };
 
   const handlePreview = () => {
@@ -651,7 +713,13 @@ export default function TeacherDashboard() {
         <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '64px 40px' }}>
           <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '56px' }}>
             <div><h1 style={{ margin: 0 }}>Toetsomgeving</h1><p className="text-muted" style={{ fontSize: '20px', fontWeight: '500', marginTop: '4px', letterSpacing: '-0.02em' }}>Beheer en deel je digitale sessies.</p></div>
-            <button className="btn" style={{ height: '48px', padding: '0 28px', fontSize: '16px' }} onClick={handleStartCreate}><Plus size={20} /> Nieuwe Toets</button>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <input type="file" id="import-json" accept=".json" onChange={handleImportJSON} style={{ display: 'none' }} />
+              <label htmlFor="import-json" className="btn btn-secondary" style={{ height: '48px', padding: '0 28px', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <Upload size={20} /> Importeer JSON
+              </label>
+              <button className="btn" style={{ height: '48px', padding: '0 28px', fontSize: '16px' }} onClick={handleStartCreate}><Plus size={20} /> Nieuwe Toets</button>
+            </div>
           </header>
 
           <div style={{ display: 'flex', gap: '32px', marginBottom: '40px', borderBottom: '1px solid var(--system-border-light)' }}>
@@ -757,6 +825,7 @@ export default function TeacherDashboard() {
                                 <div style={{ height: '1px', background: '#f5f5f7', margin: '4px 0' }} />
                                 <button style={dropdownItemStyle} onClick={() => navigate(`/teacher/results/${exam.id}`)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><BarChart3 size={14}/> Inzendingen ({exam.submissionCount})</button>
                                 <button style={dropdownItemStyle} onClick={() => handleQuickPreview(exam)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><Eye size={14}/> Preview</button>
+                                <button style={dropdownItemStyle} onClick={() => handleExportJSON(exam)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><FileJson size={14}/> Exporteer JSON</button>
                                 <button style={dropdownItemStyle} onClick={() => handleDuplicate(exam)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><Copy size={14}/> Kopieer</button>
                                 <button style={dropdownItemStyle} onClick={() => handleToggleShare(exam)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><Share2 size={14}/> {exam.isShared ? 'Niet meer delen' : 'Delen met collega\'s'}</button>
                                 <button style={dropdownItemStyle} onClick={() => window.open(`/teacher/print/${exam.exam_key}`)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><Printer size={14}/> Afdrukken</button>

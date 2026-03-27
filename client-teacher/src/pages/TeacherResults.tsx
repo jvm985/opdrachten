@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, User, List, Table as TableIcon, CheckCircle, XCircle, MapPin, Save, Copy, FileDown, Trash2, Zap } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, User, List, Table as TableIcon, CheckCircle, XCircle, MapPin, Save, Copy, FileDown, Trash2, Zap, FileJson } from 'lucide-react';
 import { TopNav } from '../components/TopNav';
 import type { Question, Exam, Submission } from '../types';
 import { io } from 'socket.io-client';
@@ -72,6 +72,22 @@ export default function TeacherResults() {
     a.href = url;
     a.download = `Resultaten_${exam?.title.replace(/\s+/g, '_')}.csv`;
     a.click();
+  };
+
+  const exportJSON = () => {
+    const data = {
+      version: '1.0',
+      exported_at: new Date().toISOString(),
+      exam: exam,
+      submissions: submissions
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Toets_${exam?.title.replace(/\s+/g, '_')}_volledig.json`;
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const calculateTotalScore = (subId: string) => {
@@ -241,7 +257,7 @@ export default function TeacherResults() {
         if (!subIds) return;
         (q.tableData || []).forEach((row, rIdx) => {
           row.forEach((cell, cIdx) => {
-            const isInteractive = q.tableConfig?.interactiveCells?.some(ic => ic.r === rIdx && ic.c === cIdx);
+            const isInteractive = q.tableConfig?.interactiveCells?.some(ic => ic.r === rIdx && ic.c === cIdx) || (answer?.[`${rIdx}-${cIdx}`] !== undefined);
             if (isInteractive) {
               const cellId = `${rIdx}-${cIdx}`;
               const studentAns = answer?.[cellId];
@@ -253,36 +269,50 @@ export default function TeacherResults() {
         });
       };
 
+      const hasInteractiveConfig = q.tableConfig?.interactiveCells && q.tableConfig.interactiveCells.length > 0;
+
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {subIds && subIds.length > 0 && (
-            <button 
-              className="btn btn-secondary" 
-              style={{ alignSelf: 'flex-start', fontSize: '12px', padding: '6px 12px', background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e' }}
-              onClick={autoGradeAll}
-            >
-              <Zap size={14} style={{ marginRight: '6px' }} /> Automatisch verbeteren (gebaseerd op exacte match)
-            </button>
-          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            {subIds && subIds.length > 0 && (
+              <button 
+                className="btn btn-secondary" 
+                style={{ fontSize: '12px', padding: '6px 12px', background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e' }}
+                onClick={autoGradeAll}
+              >
+                <Zap size={14} style={{ marginRight: '6px' }} /> Automatisch verbeteren (gebaseerd op exacte match)
+              </button>
+            )}
+            {!hasInteractiveConfig && (
+              <div style={{ fontSize: '12px', color: '#ef4444', fontWeight: '600', background: '#fef2f2', padding: '6px 12px', borderRadius: '8px', border: '1px solid #fee2e2' }}>
+                Let op: Er zijn geen invulvelden geconfigureerd voor deze tabel. Je kunt wel handmatig punten toekennen aan cellen die ingevuld zijn.
+              </div>
+            )}
+          </div>
           <div style={{ overflowX: 'auto', background: 'white', borderRadius: '12px', border: '1px solid var(--system-border)', padding: '12px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <tbody>{(q.tableData || []).map((row, rIdx) => (
                 <tr key={rIdx}>{row.map((cell, cIdx) => {
+                  const cellId = `${rIdx}-${cIdx}`;
+                  const studentAns = answer?.[cellId];
+                  const hasAnswer = studentAns !== undefined && studentAns !== null && studentAns !== '';
                   const isInteractive = q.tableConfig?.interactiveCells?.some(ic => ic.r === rIdx && ic.c === cIdx);
-                  if (!isInteractive) return <td key={cIdx} style={{ border: '1px solid #eee', padding: '10px', background: rIdx === 0 ? '#f5f5f7' : '#fafafa', fontSize: '13px', fontWeight: rIdx === 0 ? 'bold' : 'normal', textAlign: 'center' }}>{cell}</td>;
                   
-                  const cellId = `${rIdx}-${cIdx}`; 
-                  const studentAns = answer?.[cellId]; 
+                  // Toon grading buttons als het interactief IS of als er een antwoord IS (fallback)
+                  const showGrading = isInteractive || hasAnswer;
+
+                  if (!showGrading) return <td key={cIdx} style={{ border: '1px solid #eee', padding: '10px', background: rIdx === 0 ? '#f5f5f7' : '#fafafa', fontSize: '13px', fontWeight: rIdx === 0 ? 'bold' : 'normal', textAlign: 'center' }}>{cell}</td>;
+                  
                   const studentText = (typeof studentAns === 'object' ? studentAns?.text : studentAns) || '';
                   const cellScore = qScores[cellId];
 
                   const isCorrect = studentText.toLowerCase().trim() === cell.toLowerCase().trim();
 
                   return (
-                    <td key={cIdx} style={{ border: '1px solid #eee', padding: '8px', textAlign: 'center' }}>
+                    <td key={cIdx} style={{ border: '1px solid #eee', padding: '8px', textAlign: 'center', background: isInteractive ? 'white' : '#fffbeb' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '100px' }}>
                         <div style={{ padding: '6px', borderRadius: '6px', background: isCorrect ? '#f0fdf4' : '#fff1f2', border: '1px solid', borderColor: isCorrect ? '#22c55e' : '#ef4444', color: isCorrect ? '#166534' : '#991b1b', fontSize: '13px', fontWeight: '600' }}>
-                          {studentText || '-'}
+                          {studentText || (isInteractive ? '-' : '(Niet ingevuld)')}
                           {!isCorrect && studentText && <div style={{ fontSize: '10px', marginTop: '4px', borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: '4px' }}>Correct: {cell}</div>}
                         </div>
                         
@@ -292,6 +322,7 @@ export default function TeacherResults() {
                               className="btn-secondary" 
                               style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px', color: cellScore === 0 ? 'white' : 'var(--system-error)', background: cellScore === 0 ? 'var(--system-error)' : 'transparent', borderRadius: '6px', border: '1px solid var(--system-error)', cursor: 'pointer' }}
                               onClick={() => handleScoreChange(subIds, q.id, '0', cellId)}
+                              title="Fout"
                             >
                               <XCircle size={16} />
                             </button>
@@ -299,6 +330,7 @@ export default function TeacherResults() {
                               className="btn-secondary" 
                               style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px', color: cellScore === 1 ? 'white' : 'var(--system-success)', background: cellScore === 1 ? 'var(--system-success)' : 'transparent', borderRadius: '6px', border: '1px solid var(--system-success)', cursor: 'pointer' }}
                               onClick={() => handleScoreChange(subIds, q.id, '1', cellId)}
+                              title="Goed"
                             >
                               <CheckCircle size={16} />
                             </button>
@@ -372,6 +404,7 @@ export default function TeacherResults() {
             <p className="text-muted" style={{ fontSize: '17px', fontWeight: '500' }}>{exam.title} • {submissions.length} inzendingen</p>
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
+            <button className="btn btn-secondary" onClick={exportJSON} title="Download alles als JSON"><FileJson size={18} /> JSON Export</button>
             <button className="btn btn-secondary" onClick={copyForClassroom} title="Kopieer voor spreadsheet/Classroom"><Copy size={18} /> Kopieer lijst</button>
             <button className="btn btn-secondary" onClick={exportCSV} title="Download CSV bestand"><FileDown size={18} /> CSV Export</button>
           </div>

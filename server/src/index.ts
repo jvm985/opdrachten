@@ -671,6 +671,55 @@ app.put('/api/submissions/:id/scores', (req, res) => {
   });
 });
 
+app.post('/api/exams/import', (req, res) => {
+  const { teacherId, exam, submissions } = req.body;
+  const examKey = Math.random().toString(36).substring(7).toUpperCase();
+  const examId = randomUUID();
+  
+  db.run(
+    'INSERT INTO exams (id, teacher_id, title, exam_key, questions, labels, type, is_graded, require_fullscreen, detect_tab_switch, is_shared) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [
+      examId, 
+      teacherId, 
+      exam.title + ' (geïmporteerd)', 
+      examKey, 
+      JSON.stringify(exam.questions), 
+      JSON.stringify(exam.labels || []), 
+      exam.type || 'examen', 
+      exam.is_graded !== undefined ? (exam.is_graded ? 1 : 0) : (exam.isGraded ? 1 : 0), 
+      exam.require_fullscreen !== undefined ? (exam.require_fullscreen ? 1 : 0) : (exam.requireFullscreen ? 1 : 0), 
+      exam.detect_tab_switch !== undefined ? (exam.detect_tab_switch ? 1 : 0) : (exam.detectTabSwitch ? 1 : 0), 
+      0 // Nooit gedeeld bij import standaard
+    ],
+    async (err) => {
+      if (err) return res.status(500).json({ error: 'DB Error bij aanmaken examen' });
+      
+      if (submissions && Array.isArray(submissions)) {
+        for (const sub of submissions) {
+          await new Promise((resolve) => {
+            db.run(
+              'INSERT INTO submissions (id, exam_id, student_id, student_name, student_klas, answers, scores, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+              [
+                randomUUID(),
+                examId,
+                sub.student_id,
+                sub.student_name,
+                sub.student_klas,
+                JSON.stringify(sub.answers || {}),
+                JSON.stringify(sub.scores || {}),
+                sub.submitted_at || new Date().toISOString()
+              ],
+              () => resolve(true)
+            );
+          });
+        }
+      }
+      
+      res.json({ success: true, id: examId, examKey });
+    }
+  );
+});
+
 app.post('/api/submissions', (req, res) => {
   const { examId, studentId, name, klas, answers } = req.body;
   db.run(
