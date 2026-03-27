@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, List, Table as TableIcon, CheckCircle, XCircle, Save, Copy, FileDown, Trash2, Zap, FileJson } from 'lucide-react';
+import { ArrowLeft, User, List, Table as TableIcon, CheckCircle, XCircle, Save, Copy, FileDown, Trash2, Zap, FileJson, ChevronLeft, ChevronRight } from 'lucide-react';
 import { TopNav } from '../components/TopNav';
 import type { Question, Exam, Submission } from '../types';
 import { io } from 'socket.io-client';
@@ -13,6 +13,7 @@ export default function TeacherResults() {
   const [exam, setExam] = useState<Exam | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [currentSubIdx, setCurrentSubIdx] = useState(0);
+  const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [viewMode, setViewMode] = useState<'individual' | 'grouped' | 'table'>('individual');
   const [allManualScores, setAllManualScores] = useState<Record<string, any>>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -417,58 +418,65 @@ export default function TeacherResults() {
         </div>
 
         {submissions.length === 0 ? <div className="card" style={{ padding: '80px', textAlign: 'center' }}><p className="text-muted">Nog geen inzendingen.</p></div> : viewMode === 'individual' ? (
-          <div style={{ display: 'flex', gap: '32px' }}>
-            <div style={{ width: '320px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {submissions.map((sub, idx) => {
-                const unevaluated = getUnevaluatedCount(sub.id);
-                return (
-                  <button key={sub.id} onClick={() => setCurrentSubIdx(idx)} className={`card ${currentSubIdx === idx ? 'active' : ''}`} style={{ padding: '16px 20px', textAlign: 'left', cursor: 'pointer', border: currentSubIdx === idx ? '2px solid var(--system-blue)' : '1px solid transparent', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.2s' }}>
-                    <div>
-                      <div style={{ fontWeight: '700', fontSize: '15px' }}>{sub.student_name}</div>
-                      <div className="text-muted" style={{ fontSize: '12px' }}>{sub.student_klas}</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontWeight: '800', color: 'var(--system-blue)' }}>{calculateTotalScore(sub.id)} / {maxPoints}</div>
-                      {unevaluated > 0 && <span style={{ fontSize: '10px', color: 'orange', fontWeight: 'bold' }}>{unevaluated} te verbeteren</span>}
-                    </div>
-                  </button>
-                );
-              })}
+          <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', background: 'white', padding: '16px 24px', borderRadius: '16px', boxShadow: 'var(--shadow-sm)' }}>
+              <button className="btn btn-secondary" disabled={currentSubIdx === 0} onClick={() => setCurrentSubIdx(prev => prev - 1)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ChevronLeft size={20} /> Vorige student
+              </button>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontWeight: '800', fontSize: '18px' }}>{currentSub.student_name}</div>
+                <div className="text-muted" style={{ fontSize: '13px' }}>Student {currentSubIdx + 1} van {submissions.length} • {currentSub.student_klas}</div>
+              </div>
+              <button className="btn btn-secondary" disabled={currentSubIdx === submissions.length - 1} onClick={() => setCurrentSubIdx(prev => prev + 1)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                Volgende student <ChevronRight size={20} />
+              </button>
             </div>
-            <div style={{ flex: 1 }}>
-              {currentSub && (
-                <div className="animate-up">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-                    <h2 style={{ margin: 0 }}>{currentSub.student_name}</h2>
-                    <button className="btn btn-secondary" style={{ color: 'var(--system-error)' }} onClick={() => handleDeleteSubmission(currentSub.id)}><Trash2 size={18} /> Verwijder</button>
-                  </div>
-                  {exam.questions.map((q, idx) => {
-                    const studentScores = allManualScores[currentSub.id] || {};
-                    const isTableFill = q.type === 'table-fill';
-                    return (
-                      <div key={q.id} className="card" style={{ padding: '40px', marginBottom: '32px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
-                          <span className="badge">VRAAG {idx + 1}</span>
-                          {!isTableFill && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                              <input type="number" className="input" style={{ width: '80px' }} value={studentScores[q.id] ?? ''} onChange={e => handleScoreChange(currentSub.id, q.id, e.target.value)} placeholder="Score..." />
-                              <span className="text-muted">/ {q.points}</span>
-                            </div>
-                          )}
-                          {isTableFill && <span className="text-muted" style={{ fontWeight: '700', color: 'var(--system-blue)' }}>Score: {Object.values(studentScores[q.id] || {}).reduce((sum: number, v: any) => sum + (parseFloat(v) || 0), 0)} / {q.points}</span>}
-                        </div>
-                        <p style={{ fontSize: '18px', fontWeight: '600', marginBottom: '32px' }}>{q.text}</p>
-                        <StudentAnswerView q={q} answer={currentSub.answers[q.id]} subIds={[currentSub.id]} />
-                      </div>
-                    );
-                  })}
+
+            {currentSub && (
+              <div className="animate-up">
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+                  <button className="btn btn-secondary" style={{ color: 'var(--system-error)', padding: '6px 12px', fontSize: '13px' }} onClick={() => handleDeleteSubmission(currentSub.id)}><Trash2 size={16} /> Inzending verwijderen</button>
                 </div>
-              )}
-            </div>
+                {exam.questions.map((q, idx) => {
+                  const studentScores = allManualScores[currentSub.id] || {};
+                  const isTableFill = q.type === 'table-fill';
+                  return (
+                    <div key={q.id} className="card" style={{ padding: '40px', marginBottom: '32px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
+                        <span className="badge">VRAAG {idx + 1}</span>
+                        {!isTableFill && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <input type="number" className="input" style={{ width: '80px' }} value={studentScores[q.id] ?? ''} onChange={e => handleScoreChange(currentSub.id, q.id, e.target.value)} placeholder="Score..." />
+                            <span className="text-muted">/ {q.points}</span>
+                          </div>
+                        )}
+                        {isTableFill && <span className="text-muted" style={{ fontWeight: '700', color: 'var(--system-blue)' }}>Score: {Object.values(studentScores[q.id] || {}).reduce((sum: number, v: any) => sum + (parseFloat(v) || 0), 0)} / {q.points}</span>}
+                      </div>
+                      <p style={{ fontSize: '18px', fontWeight: '600', marginBottom: '32px' }}>{q.text}</p>
+                      <StudentAnswerView q={q} answer={currentSub.answers[q.id]} subIds={[currentSub.id]} />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ) : viewMode === 'grouped' ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
-            {exam.questions.map((q, idx) => {
+          <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', background: 'white', padding: '16px 24px', borderRadius: '16px', boxShadow: 'var(--shadow-sm)' }}>
+              <button className="btn btn-secondary" disabled={currentQuestionIdx === 0} onClick={() => setCurrentQuestionIdx(prev => prev - 1)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ChevronLeft size={20} /> Vorige vraag
+              </button>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontWeight: '800', fontSize: '18px' }}>Vraag {currentQuestionIdx + 1}</div>
+                <div className="text-muted" style={{ fontSize: '13px' }}>Vraag {currentQuestionIdx + 1} van {exam.questions.length}</div>
+              </div>
+              <button className="btn btn-secondary" disabled={currentQuestionIdx === exam.questions.length - 1} onClick={() => setCurrentQuestionIdx(prev => prev + 1)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                Volgende vraag <ChevronRight size={20} />
+              </button>
+            </div>
+
+            {(() => {
+              const q = exam.questions[currentQuestionIdx];
               const groups: Record<string, { answer: any, submissions: Submission[] }> = {};
               submissions.forEach(sub => {
                 const ans = JSON.stringify(sub.answers[q.id] || '');
@@ -476,15 +484,15 @@ export default function TeacherResults() {
                 groups[ans].submissions.push(sub);
               });
               return (
-                <section key={q.id}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                    <h3 style={{ margin: 0 }}>Vraag {idx + 1}: {q.text}</h3>
+                <section key={q.id} className="animate-up">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', padding: '0 8px' }}>
+                    <h3 style={{ margin: 0, fontSize: '22px' }}>{q.text}</h3>
                     <span className="badge">{q.points} PUNTEN</span>
                   </div>
                   <GroupedQuestionResultRenderer q={q} groupedSubs={Object.values(groups)} />
                 </section>
               );
-            })}
+            })()}
           </div>
         ) : (
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
