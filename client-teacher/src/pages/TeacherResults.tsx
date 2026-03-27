@@ -31,7 +31,7 @@ export default function TeacherResults() {
 
   const fetchExam = async () => {
     try {
-      const res = await fetch(`/api/exams/${examId}`);
+      const res = await fetch(`/api/exams/details/${examId}`);
       const data = await safeJson(res);
       setExam(data);
     } catch (e) { console.error(e); }

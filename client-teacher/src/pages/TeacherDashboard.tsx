@@ -290,8 +290,13 @@ export default function TeacherDashboard() {
     } catch (e) { console.error(e); }
   };
 
+  const getStudentUrl = () => {
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    return isLocal ? 'http://localhost:5174' : 'https://student.irishof.cloud';
+  };
+
   const handleQuickPreview = (exam: Exam) => {
-    window.open(`https://student.irishof.cloud/exam/${exam.exam_key}?preview=true`, '_blank');
+    window.open(`${getStudentUrl()}/exam/${exam.exam_key}?preview=true`, '_blank');
   };
 
   const handleExportJSON = async (exam: Exam) => {
@@ -358,7 +363,7 @@ export default function TeacherDashboard() {
 
   const handlePreview = () => {
     alert('Voorvertoning opent in nieuw tabblad. Sla je wijzigingen eerst op om de nieuwste versie te zien.');
-    window.open(`https://student.irishof.cloud/exam/PREVIEW?preview=true`, '_blank');
+    window.open(`${getStudentUrl()}/exam/PREVIEW?preview=true`, '_blank');
   };
 
   const saveQuestionToBank = async (q: Question) => {
