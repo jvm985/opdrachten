@@ -5,6 +5,9 @@ node_modules/
 # Build outputs
 dist/
 build/
+client-teacher/dist/
+client-student/dist/
+server/dist/
 
 # Database
 *.sqlite

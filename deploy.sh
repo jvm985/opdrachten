@@ -4,6 +4,8 @@ echo "🔄 Pulling latest code from GitHub..."
 # Opmerking: git reset wordt nu al aangeroepen door full_deploy.sh
 
 echo "🏗 Building frontends inside temporary Docker container..."
+# Verwijder oude dist folders om zeker te zijn van een schone build op de host
+sudo rm -rf client-teacher/dist client-student/dist
 # Gebruik een Node container om de build te doen zodat de 'dist' mappen op de server worden ververst
 sudo docker run --rm -v $(pwd):/app -w /app node:22-alpine sh -c "npm run install-all --silent && npm run build --silent"
 
