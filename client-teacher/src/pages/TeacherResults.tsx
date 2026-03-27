@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, User, List, Table as TableIcon, CheckCircle, XCircle, MapPin, Save, Copy, FileDown, Trash2, Zap, FileJson } from 'lucide-react';
+import { ArrowLeft, User, List, Table as TableIcon, CheckCircle, XCircle, Save, Copy, FileDown, Trash2, Zap, FileJson } from 'lucide-react';
 import { TopNav } from '../components/TopNav';
 import type { Question, Exam, Submission } from '../types';
 import { io } from 'socket.io-client';
@@ -388,7 +388,7 @@ export default function TeacherResults() {
       <TopNav user={user} />
       
       {hasUnsavedChanges && (
-        <div className="glass" style={{ position: 'fixed', bottom: '32px', left: '50%', transform: 'translateX(-50%)', padding: '16px 32px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', zRect: 1000, border: '1px solid rgba(255,255,255,0.2)' }}>
+        <div className="glass" style={{ position: 'fixed', bottom: '32px', left: '50%', transform: 'translateX(-50%)', padding: '16px 32px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', zIndex: 1000, border: '1px solid rgba(255,255,255,0.2)' }}>
           <span style={{ fontWeight: '600' }}>Je hebt niet-opgeslagen wijzigingen</span>
           <button className="btn" onClick={saveAllScores} disabled={isSaving} style={{ padding: '10px 24px' }}><Save size={18} /> {isSaving ? 'Bezig...' : 'Alle scores opslaan'}</button>
         </div>
