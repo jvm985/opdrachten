@@ -5,7 +5,7 @@ import { Plus, Trash2, Edit3, ArrowLeft, Save, X, Database, Search, Copy, Eye, P
 import { TopNav } from '../components/TopNav';
 import { QuestionEditor } from '../components/QuestionEditor';
 import type { Question, Exam } from '../types';
-import JSZip from 'jszip';
+import * as JSZip from 'jszip';
 
 export default function TeacherDashboard() {
   const navigate = useNavigate();

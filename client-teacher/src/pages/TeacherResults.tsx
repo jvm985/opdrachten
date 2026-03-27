@@ -4,7 +4,7 @@ import { ArrowLeft, User, List, Table as TableIcon, CheckCircle, XCircle, Save, 
 import { TopNav } from '../components/TopNav';
 import type { Question, Exam, Submission } from '../types';
 import { io } from 'socket.io-client';
-import JSZip from 'jszip';
+import * as JSZip from 'jszip';
 
 export default function TeacherResults() {
   const { examId } = useParams();
@@ -242,6 +242,109 @@ export default function TeacherResults() {
     const studentScores = firstSubId ? (allManualScores[firstSubId] || {}) : {};
     const qScores = studentScores[q.id] || {};
 
+    if (q.type === 'map') {
+      const studentMarkers = answer || {};
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {subIds && subIds.length > 0 && (
+            <button 
+              className="btn btn-secondary" 
+              style={{ alignSelf: 'flex-start', fontSize: '12px', padding: '8px 16px', background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e', borderRadius: '12px', fontWeight: '700' }}
+              onClick={() => {
+                setHasUnsavedChanges(true);
+                setAllManualScores(prev => {
+                  const newScores = { ...prev };
+                  subIds.forEach(subId => {
+                    const studentAns = submissions.find(s => s.id === subId)?.answers[q.id] || {};
+                    let correctCount = 0;
+                    q.locations?.forEach(loc => {
+                      const pos = studentAns[loc.id];
+                      if (pos) {
+                        const dist = Math.sqrt(Math.pow(pos.x - loc.x, 2) + Math.pow(pos.y - loc.y, 2));
+                        if (dist < 5) correctCount++; // Binnen 5% straal is correct
+                      }
+                    });
+                    newScores[subId] = { ...(newScores[subId] || {}), [q.id]: correctCount };
+                  });
+                  return newScores;
+                });
+              }}
+            >
+              <Zap size={14} style={{ marginRight: '8px' }} /> Automatisch verbeteren (nabijheid < 5%)
+            </button>
+          )}
+          <div style={{ position: 'relative', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--system-border)', background: 'white' }}>
+            <img src={q.image} style={{ width: '100%', display: 'block' }} />
+            {q.locations?.map(loc => {
+              const pos = studentMarkers[loc.id];
+              const isPlaced = !!pos;
+              const dist = pos ? Math.sqrt(Math.pow(pos.x - loc.x, 2) + Math.pow(pos.y - loc.y, 2)) : 100;
+              const isCorrect = dist < 5;
+
+              return (
+                <div key={loc.id}>
+                  {/* Correcte positie (ghost) */}
+                  <div style={{ position: 'absolute', left: `${loc.x}%`, top: `${loc.y}%`, width: '12px', height: '12px', background: 'rgba(34, 197, 94, 0.3)', borderRadius: '50%', transform: 'translate(-50%, -50%)', border: '2px dashed #22c55e' }} title={`Correcte plek voor: ${loc.label}`} />
+                  
+                  {/* Student positie */}
+                  {isPlaced && (
+                    <div style={{ position: 'absolute', left: `${pos.x}%`, top: `${pos.y}%`, transform: 'translate(-50%, -50%)', zIndex: 20 }}>
+                      <div style={{ padding: '4px 10px', background: isCorrect ? '#22c55e' : '#ef4444', color: 'white', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {isCorrect ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                        {loc.label}
+                      </div>
+                      <div style={{ width: '2px', height: '10px', background: isCorrect ? '#22c55e' : '#ef4444', margin: '0 auto' }} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: '13px', color: 'var(--system-secondary-text)', background: 'var(--system-secondary-bg)', padding: '12px', borderRadius: '10px' }}>
+            💡 De gestippelde cirkels geven de correcte locaties aan. De gekleurde labels zijn de antwoorden van de student.
+          </div>
+        </div>
+      );
+    }
+
+    if (q.type === 'image-analysis') {
+      const studentAnswers = answer || {};
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <img src={q.image} style={{ width: '100%', borderRadius: '16px', border: '1px solid var(--system-border)' }} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
+            {q.subQuestions?.map((sq, idx) => {
+              const studentVal = studentAnswers[sq.id] || '';
+              const subScore = qScores[sq.id];
+              return (
+                <div key={sq.id} style={{ background: 'white', padding: '20px', borderRadius: '16px', border: '1px solid var(--system-border)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ fontWeight: '700', fontSize: '14px' }}>{idx + 1}. {sq.text}</div>
+                    <span className="badge" style={{ fontSize: '10px' }}>{sq.points} PT</span>
+                  </div>
+                  <div style={{ fontSize: '15px', padding: '12px', background: 'var(--system-secondary-bg)', borderRadius: '10px', minHeight: '60px', whiteSpace: 'pre-wrap' }}>{studentVal || '(Geen antwoord)'}</div>
+                  
+                  {subIds && subIds.length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '700' }}>Score:</span>
+                      <input 
+                        type="number" 
+                        className="input" 
+                        style={{ width: '70px', height: '32px', textAlign: 'center' }} 
+                        value={subScore ?? ''} 
+                        onChange={e => handleScoreChange(subIds, q.id, e.target.value, sq.id)}
+                        placeholder="0"
+                      />
+                      <span className="text-muted">/ {sq.points}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
     if (q.type === 'multiple-choice') {
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -249,6 +352,106 @@ export default function TeacherResults() {
             const isSelected = answer === opt; const isCorrect = q.correctAnswer === opt;
             return <div key={idx} style={{ padding: '16px 20px', borderRadius: '12px', border: '1px solid', background: isSelected ? (isCorrect ? '#f0fdf4' : '#fff1f2') : 'white', borderColor: isSelected ? (isCorrect ? '#22c55e' : '#ef4444') : '#d2d2d7', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span style={{ fontWeight: isSelected ? '700' : '500' }}>{opt}</span>{isSelected && (isCorrect ? <CheckCircle size={18} color="#22c55e" /> : <XCircle size={18} color="#ef4444" />)}</div>;
           })}
+        </div>
+      );
+    }
+
+    if (q.type === 'definitions') {
+      const studentAnswers = answer || {};
+      return (
+        <div style={{ background: 'white', borderRadius: '16px', border: '1px solid var(--system-border)', overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#f5f5f7', borderBottom: '1px solid #eee' }}>
+                <th style={{ padding: '12px 20px', textAlign: 'left' }}>Definitie</th>
+                <th style={{ padding: '12px 20px', textAlign: 'left' }}>Antwoord (Term)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {q.pairs?.map(pair => {
+                const studentVal = studentAnswers[pair.id];
+                const isCorrect = normalize(studentVal || '') === normalize(pair.term);
+                return (
+                  <tr key={pair.id} style={{ borderBottom: '1px solid #f5f5f7' }}>
+                    <td style={{ padding: '12px 20px', fontSize: '14px' }}>{pair.definition}</td>
+                    <td style={{ padding: '12px 20px' }}>
+                      <span style={{ padding: '4px 12px', borderRadius: '6px', background: isCorrect ? '#f0fdf4' : '#fff1f2', color: isCorrect ? '#166534' : '#991b1b', fontWeight: '700', border: '1px solid', borderColor: isCorrect ? '#22c55e' : '#ef4444' }}>
+                        {studentVal || '(Leeg)'}
+                        {!isCorrect && <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '8px' }}>(Correct: {pair.term})</span>}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    if (q.type === 'matching') {
+      const studentAnswers = answer || {};
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {q.matchingPairs?.map(pair => {
+            const studentVal = studentAnswers[pair.id];
+            const isCorrect = studentVal === pair.right;
+            return (
+              <div key={pair.id} style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ flex: 1, padding: '12px 20px', background: '#f5f5f7', borderRadius: '12px', fontWeight: '600' }}>{pair.left}</div>
+                <div style={{ color: 'var(--system-secondary-text)' }}>→</div>
+                <div style={{ flex: 1, padding: '12px 20px', background: isCorrect ? '#f0fdf4' : '#fff1f2', border: '1px solid', borderColor: isCorrect ? '#22c55e' : '#ef4444', color: isCorrect ? '#166534' : '#991b1b', borderRadius: '12px', fontWeight: '700' }}>
+                  {studentVal || '(Geen match)'}
+                  {!isCorrect && <span style={{ fontSize: '10px', display: 'block', opacity: 0.7 }}>Correct: {pair.right}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    if (q.type === 'ordering') {
+      const studentOrder = Array.isArray(answer) ? answer : [];
+      const correctOrder = q.orderItems || [];
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {studentOrder.map((item, idx) => {
+            const isCorrect = item === correctOrder[idx];
+            return (
+              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 20px', background: isCorrect ? '#f0fdf4' : '#fff1f2', border: '1px solid', borderColor: isCorrect ? '#22c55e' : '#ef4444', borderRadius: '12px' }}>
+                <span style={{ fontWeight: '800', color: 'var(--system-secondary-text)', width: '24px' }}>{idx + 1}.</span>
+                <span style={{ fontWeight: '600', color: isCorrect ? '#166534' : '#991b1b' }}>{item}</span>
+                {!isCorrect && <span style={{ marginLeft: 'auto', fontSize: '11px', opacity: 0.6 }}>Correcte plek: {correctOrder.indexOf(item) + 1}</span>}
+              </div>
+            );
+          })}
+          {studentOrder.length === 0 && <p className="text-muted">Geen antwoord gegeven.</p>}
+        </div>
+      );
+    }
+
+    if (q.type === 'timeline') {
+      const studentBuckets = Array.isArray(answer) ? answer : [];
+      const correctBuckets = q.timelineData || [];
+      return (
+        <div style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '16px' }}>
+          {correctBuckets.map((bucket, bIdx) => (
+            <div key={bIdx} style={{ minWidth: '200px', flex: 1, background: '#f5f5f7', borderRadius: '16px', padding: '16px', border: '1px solid var(--system-border)' }}>
+              <div style={{ fontWeight: '800', fontSize: '13px', marginBottom: '16px', textAlign: 'center', color: 'var(--system-secondary-text)' }}>PERIODE {bIdx + 1}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {studentBuckets[bIdx]?.map((item: any, iIdx: number) => {
+                  const isInCorrectBucket = bucket.some(b => b.id === item.id);
+                  return (
+                    <div key={iIdx} style={{ padding: '8px 12px', background: isInCorrectBucket ? '#f0fdf4' : '#fff1f2', border: '1px solid', borderColor: isInCorrectBucket ? '#22c55e' : '#ef4444', color: isInCorrectBucket ? '#166534' : '#991b1b', borderRadius: '8px', fontSize: '12px', fontWeight: '600' }}>
+                      {item.text}
+                    </div>
+                  );
+                })}
+                {(!studentBuckets[bIdx] || studentBuckets[bIdx].length === 0) && <div style={{ height: '40px', border: '1px dashed #ccc', borderRadius: '8px' }} />}
+              </div>
+            </div>
+          ))}
         </div>
       );
     }
