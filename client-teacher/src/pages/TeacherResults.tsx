@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, List, Table as TableIcon, CheckCircle, XCircle, Save, Copy, FileDown, Trash2, Zap, FileJson, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, User, List, Table as TableIcon, CheckCircle, XCircle, Save, Copy, FileDown, Trash2, Zap, FileJson, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
 import { TopNav } from '../components/TopNav';
 import type { Question, Exam, Submission } from '../types';
 import { io } from 'socket.io-client';
@@ -18,6 +18,10 @@ export default function TeacherResults() {
   const [allManualScores, setAllManualScores] = useState<Record<string, any>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  const [ignoreCase, setIgnoreCase] = useState(true);
+  const [ignorePunctuation, setIgnorePunctuation] = useState(true);
+  const [showGradeOptions, setShowGradeOptions] = useState(false);
 
   useEffect(() => {
     fetchExam();
@@ -27,7 +31,16 @@ export default function TeacherResults() {
     socket.on('submission_received', (data) => {
       if (data.examId === examId) fetchSubmissions();
     });
-    return () => { socket.disconnect(); };
+
+    const handleClickOutside = () => {
+      setShowGradeOptions(false);
+    };
+    window.addEventListener('click', handleClickOutside);
+
+    return () => { 
+      socket.disconnect(); 
+      window.removeEventListener('click', handleClickOutside);
+    };
   }, [examId]);
 
   const fetchExam = async () => {
@@ -180,6 +193,58 @@ export default function TeacherResults() {
     fetchSubmissions();
   };
 
+  const normalize = (str: string) => {
+    let result = str.trim();
+    if (ignoreCase) result = result.toLowerCase();
+    if (ignorePunctuation) result = result.replace(/[.,!?;:]/g, '');
+    return result.trim();
+  };
+
+  const handleAutoGradeTable = (q: Question, targetSubmissions: Submission[]) => {
+    setHasUnsavedChanges(true);
+    setAllManualScores(prev => {
+      const newScores = { ...prev };
+      targetSubmissions.forEach(sub => {
+        const subId = sub.id;
+        const currentStudentScores = { ...(newScores[subId] || {}) };
+        const qScores = { ...(currentStudentScores[q.id] || {}) };
+        const studentAnswer = sub.answers[q.id] || {};
+
+        (q.tableData || []).forEach((row, rIdx) => {
+          row.forEach((cell, cIdx) => {
+            const isInteractive = q.tableConfig?.interactiveCells?.some(ic => ic.r === rIdx && ic.c === cIdx) || (studentAnswer?.[`${rIdx}-${cIdx}`] !== undefined);
+            if (isInteractive) {
+              const cellId = `${rIdx}-${cIdx}`;
+              const studentAns = studentAnswer[cellId];
+              const studentText = (typeof studentAns === 'object' ? studentAns?.text : studentAns) || '';
+              const isCellCorrect = normalize(studentText) === normalize(cell);
+              qScores[cellId] = isCellCorrect ? 1 : 0;
+            }
+          });
+        });
+        currentStudentScores[q.id] = qScores;
+        newScores[subId] = currentStudentScores;
+      });
+      return newScores;
+    });
+  };
+
+  const AutoGradeOptions = () => (
+    <div className="glass animate-up" style={{ position: 'absolute', top: '40px', left: '0', background: 'white', padding: '16px', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', zIndex: 100, width: '240px', border: '1px solid rgba(0,0,0,0.05)' }}>
+      <p style={{ margin: '0 0 12px 0', fontSize: '11px', fontWeight: '800', color: 'var(--system-secondary-text)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Verbeter Opties</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+          <input type="checkbox" checked={ignoreCase} onChange={e => setIgnoreCase(e.target.checked)} style={{ width: '16px', height: '16px' }} />
+          Negeer hoofdletters
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+          <input type="checkbox" checked={ignorePunctuation} onChange={e => setIgnorePunctuation(e.target.checked)} style={{ width: '16px', height: '16px' }} />
+          Negeer interpunctie
+        </label>
+      </div>
+    </div>
+  );
+
   const StudentAnswerView = ({ q, answer, subIds }: { q: Question, answer: any, subIds?: string[] }) => {
     const firstSubId = subIds?.[0];
     const studentScores = firstSubId ? (allManualScores[firstSubId] || {}) : {};
@@ -254,42 +319,15 @@ export default function TeacherResults() {
       );
     }
     if (q.type === 'table-fill') {
-      const autoGradeAll = () => {
-        if (!subIds) return;
-        (q.tableData || []).forEach((row, rIdx) => {
-          row.forEach((cell, cIdx) => {
-            const isInteractive = q.tableConfig?.interactiveCells?.some(ic => ic.r === rIdx && ic.c === cIdx) || (answer?.[`${rIdx}-${cIdx}`] !== undefined);
-            if (isInteractive) {
-              const cellId = `${rIdx}-${cIdx}`;
-              const studentAns = answer?.[cellId];
-              const studentText = (typeof studentAns === 'object' ? studentAns?.text : studentAns) || '';
-              const isCellCorrect = studentText.toLowerCase().trim() === cell.toLowerCase().trim();
-              handleScoreChange(subIds, q.id, isCellCorrect ? '1' : '0', cellId);
-            }
-          });
-        });
-      };
-
       const hasInteractiveConfig = q.tableConfig?.interactiveCells && q.tableConfig.interactiveCells.length > 0;
 
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            {subIds && subIds.length > 0 && (
-              <button 
-                className="btn btn-secondary" 
-                style={{ fontSize: '12px', padding: '6px 12px', background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e' }}
-                onClick={autoGradeAll}
-              >
-                <Zap size={14} style={{ marginRight: '6px' }} /> Automatisch verbeteren (gebaseerd op exacte match)
-              </button>
-            )}
-            {!hasInteractiveConfig && (
-              <div style={{ fontSize: '12px', color: '#ef4444', fontWeight: '600', background: '#fef2f2', padding: '6px 12px', borderRadius: '8px', border: '1px solid #fee2e2' }}>
-                Let op: Er zijn geen invulvelden geconfigureerd voor deze tabel. Je kunt wel handmatig punten toekennen aan cellen die ingevuld zijn.
-              </div>
-            )}
-          </div>
+          {!hasInteractiveConfig && (
+            <div style={{ fontSize: '12px', color: '#ef4444', fontWeight: '600', background: '#fef2f2', padding: '6px 12px', borderRadius: '8px', border: '1px solid #fee2e2' }}>
+              Let op: Er zijn geen invulvelden geconfigureerd voor deze tabel. Je kunt wel handmatig punten toekennen aan cellen die ingevuld zijn.
+            </div>
+          )}
           <div style={{ overflowX: 'auto', background: 'white', borderRadius: '12px', border: '1px solid var(--system-border)', padding: '12px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <tbody>{(q.tableData || []).map((row, rIdx) => (
@@ -307,33 +345,33 @@ export default function TeacherResults() {
                   const studentText = (typeof studentAns === 'object' ? studentAns?.text : studentAns) || '';
                   const cellScore = qScores[cellId];
 
-                  const isCorrect = studentText.toLowerCase().trim() === cell.toLowerCase().trim();
+                  const isCorrect = normalize(studentText) === normalize(cell);
 
                   return (
                     <td key={cIdx} style={{ border: '1px solid #eee', padding: '8px', textAlign: 'center', background: isInteractive ? 'white' : '#fffbeb' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '100px' }}>
-                        <div style={{ padding: '6px', borderRadius: '6px', background: isCorrect ? '#f0fdf4' : '#fff1f2', border: '1px solid', borderColor: isCorrect ? '#22c55e' : '#ef4444', color: isCorrect ? '#166534' : '#991b1b', fontSize: '13px', fontWeight: '600' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', minWidth: '120px' }}>
+                        <div style={{ flex: 1, padding: '6px', borderRadius: '6px', background: isCorrect ? '#f0fdf4' : '#fff1f2', border: '1px solid', borderColor: isCorrect ? '#22c55e' : '#ef4444', color: isCorrect ? '#166534' : '#991b1b', fontSize: '13px', fontWeight: '600' }}>
                           {studentText || (isInteractive ? '-' : '(Niet ingevuld)')}
                           {!isCorrect && studentText && <div style={{ fontSize: '10px', marginTop: '4px', borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: '4px' }}>Correct: {cell}</div>}
                         </div>
                         
                         {subIds && subIds.length > 0 && (
-                          <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             <button 
                               className="btn-secondary" 
-                              style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px', color: cellScore === 0 ? 'white' : 'var(--system-error)', background: cellScore === 0 ? 'var(--system-error)' : 'transparent', borderRadius: '6px', border: '1px solid var(--system-error)', cursor: 'pointer' }}
-                              onClick={() => handleScoreChange(subIds, q.id, '0', cellId)}
-                              title="Fout"
-                            >
-                              <XCircle size={16} />
-                            </button>
-                            <button 
-                              className="btn-secondary" 
-                              style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px', color: cellScore === 1 ? 'white' : 'var(--system-success)', background: cellScore === 1 ? 'var(--system-success)' : 'transparent', borderRadius: '6px', border: '1px solid var(--system-success)', cursor: 'pointer' }}
+                              style={{ padding: '2px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: cellScore === 1 ? 'white' : 'var(--system-success)', background: cellScore === 1 ? 'var(--system-success)' : 'transparent', borderRadius: '4px', border: '1px solid var(--system-success)', cursor: 'pointer' }}
                               onClick={() => handleScoreChange(subIds, q.id, '1', cellId)}
                               title="Goed"
                             >
-                              <CheckCircle size={16} />
+                              <CheckCircle size={14} />
+                            </button>
+                            <button 
+                              className="btn-secondary" 
+                              style={{ padding: '2px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: cellScore === 0 ? 'white' : 'var(--system-error)', background: cellScore === 0 ? 'var(--system-error)' : 'transparent', borderRadius: '4px', border: '1px solid var(--system-error)', cursor: 'pointer' }}
+                              onClick={() => handleScoreChange(subIds, q.id, '0', cellId)}
+                              title="Fout"
+                            >
+                              <XCircle size={14} />
                             </button>
                           </div>
                         )}
@@ -357,17 +395,30 @@ export default function TeacherResults() {
           <div key={idx} className="card" style={{ padding: '24px', border: '1px solid var(--system-border)', background: 'rgba(255,255,255,0.5)' }}>
             <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
               <div style={{ flex: 1 }}><StudentAnswerView q={q} answer={group.answer} subIds={group.submissions.map(s => s.id)} /></div>
-              <div style={{ width: '280px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {group.submissions.map(s => <span key={s.id} className="badge" style={{ background: 'var(--system-blue-light)', color: 'var(--system-blue)' }}>{s.student_name}</span>)}
-                </div>
-                {q.type !== 'table-fill' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <input type="number" className="input" style={{ width: '80px' }} value={allManualScores[group.submissions[0].id]?.[q.id] ?? ''} onChange={e => handleGroupScoreChange(group.submissions.map(s => s.id), q.id, e.target.value)} placeholder="Score..." />
-                    <span className="text-muted">/ {q.points}</span>
+                <div style={{ width: '300px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {group.submissions.map(s => <span key={s.id} className="badge" style={{ background: 'var(--system-blue-light)', color: 'var(--system-blue)' }}>{s.student_name}</span>)}
                   </div>
-                )}
-              </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#f8f9fa', padding: '12px', borderRadius: '14px', border: '1px solid #eee' }}>
+                    {q.type === 'table-fill' ? (
+                      <span style={{ fontWeight: '800', color: 'var(--system-blue)', fontSize: '14px' }}>
+                        Score: {Object.values(allManualScores[group.submissions[0].id]?.[q.id] || {}).reduce((sum: number, v: any) => sum + (parseFloat(v) || 0), 0)} / {q.points}
+                      </span>
+                    ) : (
+                      <>
+                        <span style={{ fontSize: '13px', fontWeight: '700', color: '#666' }}>Score:</span>
+                        <input 
+                          type="number" 
+                          className="input" 
+                          style={{ width: '90px', height: '36px', fontSize: '16px', textAlign: 'center', fontWeight: 'bold' }} 
+                          value={allManualScores[group.submissions[0].id]?.[q.id] ?? ''} 
+                          onChange={e => handleGroupScoreChange(group.submissions.map(s => s.id), q.id, e.target.value)} 
+                        />
+                        <span className="text-muted" style={{ fontWeight: '600' }}>/ {q.points}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
             </div>
           </div>
         ))}
@@ -442,16 +493,50 @@ export default function TeacherResults() {
                   const isTableFill = q.type === 'table-fill';
                   return (
                     <div key={q.id} className="card" style={{ padding: '40px', marginBottom: '32px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
-                        <span className="badge">VRAAG {idx + 1}</span>
-                        {!isTableFill && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <input type="number" className="input" style={{ width: '80px' }} value={studentScores[q.id] ?? ''} onChange={e => handleScoreChange(currentSub.id, q.id, e.target.value)} placeholder="Score..." />
-                            <span className="text-muted">/ {q.points}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          <span className="badge">VRAAG {idx + 1}</span>
+                          {isTableFill && (
+                            <div style={{ position: 'relative', display: 'flex', alignItems: 'stretch' }}>
+                              <button 
+                                className="btn btn-secondary" 
+                                style={{ height: '32px', display: 'flex', alignItems: 'center', fontSize: '11px', padding: '0 12px', background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e', borderRadius: '10px 0 0 10px', borderRight: 'none', fontWeight: '600' }}
+                                onClick={() => handleAutoGradeTable(q, [currentSub])}
+                              >
+                                <Zap size={13} style={{ marginRight: '6px' }} /> Verbeter tabel
+                              </button>
+                              <button 
+                                className="btn btn-secondary" 
+                                style={{ height: '32px', width: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e', borderRadius: '0 10px 10px 0' }}
+                                onClick={(e) => { e.stopPropagation(); setShowGradeOptions(showGradeOptions === q.id ? null : q.id as any); }}
+                              >
+                                <Settings size={13} />
+                              </button>
+                              {showGradeOptions === q.id && <AutoGradeOptions />}
+                            </div>
+                          )}
+                        </div>
+                        {!isTableFill ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#f8f9fa', padding: '8px 16px', borderRadius: '12px', border: '1px solid #eee' }}>
+                            <span style={{ fontSize: '14px', fontWeight: '700', color: '#444' }}>Score:</span>
+                            <input 
+                              type="number" 
+                              className="input" 
+                              style={{ width: '90px', height: '36px', fontSize: '16px', textAlign: 'center', fontWeight: 'bold' }} 
+                              value={studentScores[q.id] ?? ''} 
+                              onChange={e => handleScoreChange(currentSub.id, q.id, e.target.value)}
+                            />
+                            <span className="text-muted" style={{ fontWeight: '600' }}>/ {q.points}</span>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', background: '#f0f7ff', padding: '8px 16px', borderRadius: '12px', border: '1px solid #d0e7ff' }}>
+                            <span style={{ fontWeight: '800', color: 'var(--system-blue)', fontSize: '15px' }}>
+                              Score: {Object.values(studentScores[q.id] || {}).reduce((sum: number, v: any) => sum + (parseFloat(v) || 0), 0)} / {q.points}
+                            </span>
                           </div>
                         )}
-                        {isTableFill && <span className="text-muted" style={{ fontWeight: '700', color: 'var(--system-blue)' }}>Score: {Object.values(studentScores[q.id] || {}).reduce((sum: number, v: any) => sum + (parseFloat(v) || 0), 0)} / {q.points}</span>}
                       </div>
+
                       <p style={{ fontSize: '18px', fontWeight: '600', marginBottom: '32px' }}>{q.text}</p>
                       <StudentAnswerView q={q} answer={currentSub.answers[q.id]} subIds={[currentSub.id]} />
                     </div>
@@ -486,7 +571,28 @@ export default function TeacherResults() {
               return (
                 <section key={q.id} className="animate-up">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', padding: '0 8px' }}>
-                    <h3 style={{ margin: 0, fontSize: '22px' }}>{q.text}</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                      <h3 style={{ margin: 0, fontSize: '22px' }}>{q.text}</h3>
+                      {q.type === 'table-fill' && (
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                          <button 
+                            className="btn btn-secondary" 
+                            style={{ fontSize: '12px', padding: '8px 16px', background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e', borderRadius: '12px 0 0 12px', fontWeight: '700', borderRight: 'none' }}
+                            onClick={() => handleAutoGradeTable(q, submissions)}
+                          >
+                            <Zap size={14} style={{ marginRight: '8px' }} /> Alle tabellen automatisch verbeteren
+                          </button>
+                          <button 
+                            className="btn btn-secondary" 
+                            style={{ fontSize: '12px', padding: '8px 12px', background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e', borderRadius: '0 12px 12px 0' }}
+                            onClick={(e) => { e.stopPropagation(); setShowGradeOptions(showGradeOptions === q.id ? null : q.id as any); }}
+                          >
+                            <Settings size={14} />
+                          </button>
+                          {showGradeOptions === q.id && <AutoGradeOptions />}
+                        </div>
+                      )}
+                    </div>
                     <span className="badge">{q.points} PUNTEN</span>
                   </div>
                   <GroupedQuestionResultRenderer q={q} groupedSubs={Object.values(groups)} />
