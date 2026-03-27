@@ -5,6 +5,7 @@ import { Plus, Trash2, Edit3, ArrowLeft, Save, X, Database, Search, Copy, Eye, P
 import { TopNav } from '../components/TopNav';
 import { QuestionEditor } from '../components/QuestionEditor';
 import type { Question, Exam } from '../types';
+import JSZip from 'jszip';
 
 export default function TeacherDashboard() {
   const navigate = useNavigate();
@@ -303,17 +304,22 @@ export default function TeacherDashboard() {
     try {
       const res = await fetch(`/api/exams/${exam.id}/submissions`);
       const submissions = await safeJson(res);
-      const data = {
-        version: '1.0',
+      
+      const zip = new JSZip();
+      const exportData = {
+        version: '2.0',
         exported_at: new Date().toISOString(),
         exam: exam,
         submissions: submissions
       };
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
+      
+      zip.file("data.json", JSON.stringify(exportData, null, 2));
+      
+      const content = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+      const url = URL.createObjectURL(content);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Toets_${exam.title.replace(/\s+/g, '_')}_met_inzendingen.json`;
+      a.download = `Toets_${exam.title.replace(/\s+/g, '_')}.exam`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -326,39 +332,42 @@ export default function TeacherDashboard() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const data = JSON.parse(event.target?.result as string);
-        if (!data.exam) throw new Error('Ongeldig bestandsformaat');
+    try {
+      setIsLoading(true);
+      const zip = await JSZip.loadAsync(file);
+      const dataFile = zip.file("data.json");
+      
+      if (!dataFile) throw new Error('Geen data.json gevonden in het bestand. Is dit een geldig .exam bestand?');
+      
+      const jsonContent = await dataFile.async("string");
+      const data = JSON.parse(jsonContent);
+      
+      if (!data.exam) throw new Error('Ongeldig bestandsformaat: geen exam object gevonden');
 
-        setIsLoading(true);
-        const res = await fetch('/api/exams/import', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            teacherId: user.id,
-            exam: data.exam,
-            submissions: data.submissions
-          })
-        });
+      const res = await fetch('/api/exams/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          teacherId: user.id,
+          exam: data.exam,
+          submissions: data.submissions
+        })
+      });
 
-        if (res.ok) {
-          alert('Examen en inzendingen succesvol geïmporteerd!');
-          fetchExams();
-          if (isAdmin) fetchAllExams();
-        } else {
-          alert('Fout bij importeren');
-        }
-      } catch (err) {
-        console.error(err);
-        alert('Fout bij het lezen van het JSON bestand: ' + (err as Error).message);
-      } finally {
-        setIsLoading(false);
-        e.target.value = ''; // Reset input
+      if (res.ok) {
+        alert('Examen en inzendingen succesvol geïmporteerd!');
+        fetchExams();
+        if (isAdmin) fetchAllExams();
+      } else {
+        alert('Fout bij importeren op de server');
       }
-    };
-    reader.readAsText(file);
+    } catch (err) {
+      console.error(err);
+      alert('Fout bij het importeren: ' + (err as Error).message);
+    } finally {
+      setIsLoading(false);
+      e.target.value = ''; // Reset input
+    }
   };
 
   const handlePreview = () => {

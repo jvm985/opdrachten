@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, List, Table as TableIcon, CheckCircle, XCircle, Save, Copy, FileDown, Trash2, Zap, FileJson, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
+import { ArrowLeft, User, List, Table as TableIcon, CheckCircle, XCircle, Save, Copy, FileDown, Trash2, Zap, FileJson, ChevronLeft, ChevronRight, Settings, ChevronDown } from 'lucide-react';
 import { TopNav } from '../components/TopNav';
 import type { Question, Exam, Submission } from '../types';
 import { io } from 'socket.io-client';
+import JSZip from 'jszip';
 
 export default function TeacherResults() {
   const { examId } = useParams();
@@ -21,7 +22,7 @@ export default function TeacherResults() {
   
   const [ignoreCase, setIgnoreCase] = useState(true);
   const [ignorePunctuation, setIgnorePunctuation] = useState(true);
-  const [showGradeOptions, setShowGradeOptions] = useState(false);
+  const [showGradeOptions, setShowGradeOptions] = useState<string | null>(null);
 
   useEffect(() => {
     fetchExam();
@@ -33,7 +34,7 @@ export default function TeacherResults() {
     });
 
     const handleClickOutside = () => {
-      setShowGradeOptions(false);
+      setShowGradeOptions(null);
     };
     window.addEventListener('click', handleClickOutside);
 
@@ -88,20 +89,29 @@ export default function TeacherResults() {
     a.click();
   };
 
-  const exportJSON = () => {
-    const data = {
-      version: '1.0',
-      exported_at: new Date().toISOString(),
-      exam: exam,
-      submissions: submissions
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Toets_${exam?.title.replace(/\s+/g, '_')}_volledig.json`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+  const exportJSON = async () => {
+    try {
+      const zip = new JSZip();
+      const exportData = {
+        version: '2.0',
+        exported_at: new Date().toISOString(),
+        exam: exam,
+        submissions: submissions
+      };
+      
+      zip.file("data.json", JSON.stringify(exportData, null, 2));
+      
+      const content = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+      const url = window.URL.createObjectURL(content);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Toets_${exam?.title.replace(/\s+/g, '_')}_volledig.exam`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      alert('Fout bij exporteren');
+    }
   };
 
   const calculateTotalScore = (subId: string) => {
@@ -112,24 +122,6 @@ export default function TeacherResults() {
       }
       return total + (parseFloat(score as any) || 0);
     }, 0);
-  };
-
-  const getUnevaluatedCount = (subId: string) => {
-    const scores = allManualScores[subId] || {};
-    return exam?.questions.filter(q => {
-      if (q.type === 'image-analysis') {
-        const subScores = scores[q.id] || {};
-        return q.subQuestions?.some(sq => subScores[sq.id] === undefined || subScores[sq.id] === null);
-      }
-      if (q.type === 'table-fill') {
-        const subScores = scores[q.id] || {};
-        return q.tableConfig?.interactiveCells?.some(ic => {
-          const cellId = `${ic.r}-${ic.c}`;
-          return subScores[cellId] === undefined || subScores[cellId] === null;
-        });
-      }
-      return scores[q.id] === undefined || scores[q.id] === null;
-    }).length || 0;
   };
 
   const maxPoints = exam?.questions.reduce((s: number, q: Question) => s + (q.type === 'image-analysis' ? (q.subQuestions?.reduce((ss, sq) => ss + sq.points, 0) || 0) : q.points), 0);
@@ -472,14 +464,26 @@ export default function TeacherResults() {
           <div style={{ maxWidth: '800px', margin: '0 auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', background: 'white', padding: '16px 24px', borderRadius: '16px', boxShadow: 'var(--shadow-sm)' }}>
               <button className="btn btn-secondary" disabled={currentSubIdx === 0} onClick={() => setCurrentSubIdx(prev => prev - 1)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <ChevronLeft size={20} /> Vorige student
+                <ChevronLeft size={20} /> Vorige
               </button>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontWeight: '800', fontSize: '18px' }}>{currentSub.student_name}</div>
-                <div className="text-muted" style={{ fontSize: '13px' }}>Student {currentSubIdx + 1} van {submissions.length} • {currentSub.student_klas}</div>
+              <div style={{ textAlign: 'center', minWidth: '300px', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div style={{ position: 'relative', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <select 
+                    className="input" 
+                    style={{ width: '100%', fontSize: '18px', fontWeight: '800', textAlign: 'center', border: 'none', background: 'transparent', cursor: 'pointer', paddingRight: '20px', appearance: 'none' }}
+                    value={currentSubIdx}
+                    onChange={(e) => setCurrentSubIdx(parseInt(e.target.value))}
+                  >
+                    {submissions.map((sub, idx) => (
+                      <option key={sub.id} value={idx}>{sub.student_name} ({sub.student_klas})</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={16} style={{ position: 'absolute', right: '10%', pointerEvents: 'none', opacity: 0.5 }} />
+                </div>
+                <div className="text-muted" style={{ fontSize: '13px' }}>Student {currentSubIdx + 1} van {submissions.length}</div>
               </div>
               <button className="btn btn-secondary" disabled={currentSubIdx === submissions.length - 1} onClick={() => setCurrentSubIdx(prev => prev + 1)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                Volgende student <ChevronRight size={20} />
+                Volgende <ChevronRight size={20} />
               </button>
             </div>
 
@@ -549,14 +553,26 @@ export default function TeacherResults() {
           <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', background: 'white', padding: '16px 24px', borderRadius: '16px', boxShadow: 'var(--shadow-sm)' }}>
               <button className="btn btn-secondary" disabled={currentQuestionIdx === 0} onClick={() => setCurrentQuestionIdx(prev => prev - 1)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <ChevronLeft size={20} /> Vorige vraag
+                <ChevronLeft size={20} /> Vorige
               </button>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontWeight: '800', fontSize: '18px' }}>Vraag {currentQuestionIdx + 1}</div>
+              <div style={{ textAlign: 'center', minWidth: '300px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div style={{ position: 'relative', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <select 
+                    className="input" 
+                    style={{ width: '100%', fontSize: '18px', fontWeight: '800', textAlign: 'center', border: 'none', background: 'transparent', cursor: 'pointer', paddingRight: '20px', appearance: 'none' }}
+                    value={currentQuestionIdx}
+                    onChange={(e) => setCurrentQuestionIdx(parseInt(e.target.value))}
+                  >
+                    {exam.questions.map((q, idx) => (
+                      <option key={q.id} value={idx}>Vraag {idx + 1}: {q.text.substring(0, 40)}{q.text.length > 40 ? '...' : ''}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={16} style={{ position: 'absolute', right: '10%', pointerEvents: 'none', opacity: 0.5 }} />
+                </div>
                 <div className="text-muted" style={{ fontSize: '13px' }}>Vraag {currentQuestionIdx + 1} van {exam.questions.length}</div>
               </div>
               <button className="btn btn-secondary" disabled={currentQuestionIdx === exam.questions.length - 1} onClick={() => setCurrentQuestionIdx(prev => prev + 1)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                Volgende vraag <ChevronRight size={20} />
+                Volgende <ChevronRight size={20} />
               </button>
             </div>
 
@@ -574,17 +590,17 @@ export default function TeacherResults() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                       <h3 style={{ margin: 0, fontSize: '22px' }}>{q.text}</h3>
                       {q.type === 'table-fill' && (
-                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'stretch' }}>
                           <button 
                             className="btn btn-secondary" 
-                            style={{ fontSize: '12px', padding: '8px 16px', background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e', borderRadius: '12px 0 0 12px', fontWeight: '700', borderRight: 'none' }}
+                            style={{ height: '36px', display: 'flex', alignItems: 'center', fontSize: '12px', padding: '0 16px', background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e', borderRadius: '12px 0 0 12px', fontWeight: '700', borderRight: 'none' }}
                             onClick={() => handleAutoGradeTable(q, submissions)}
                           >
                             <Zap size={14} style={{ marginRight: '8px' }} /> Alle tabellen automatisch verbeteren
                           </button>
                           <button 
                             className="btn btn-secondary" 
-                            style={{ fontSize: '12px', padding: '8px 12px', background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e', borderRadius: '0 12px 12px 0' }}
+                            style={{ height: '36px', width: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e', borderRadius: '0 12px 12px 0' }}
                             onClick={(e) => { e.stopPropagation(); setShowGradeOptions(showGradeOptions === q.id ? null : q.id as any); }}
                           >
                             <Settings size={14} />
