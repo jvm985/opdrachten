@@ -270,7 +270,7 @@ export default function TeacherResults() {
                 });
               }}
             >
-              <Zap size={14} style={{ marginRight: '8px' }} /> Automatisch verbeteren (nabijheid < 5%)
+              <Zap size={14} style={{ marginRight: '8px' }} /> Automatisch verbeteren (nabijheid &lt; 5%)
             </button>
           )}
           <div style={{ position: 'relative', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--system-border)', background: 'white' }}>
