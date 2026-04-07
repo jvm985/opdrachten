@@ -4,7 +4,7 @@ import { ArrowLeft, User, List, Table as TableIcon, CheckCircle, XCircle, Save, 
 import { TopNav } from '../components/TopNav';
 import type { Question, Exam, Submission } from '../types';
 import { io } from 'socket.io-client';
-import * as JSZip from 'jszip';
+import JSZip from 'jszip';
 
 export default function TeacherResults() {
   const { examId } = useParams();
