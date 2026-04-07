@@ -728,11 +728,10 @@ export default function TeacherDashboard() {
           <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '56px' }}>
             <div><h1 style={{ margin: 0 }}>Toetsomgeving</h1><p className="text-muted" style={{ fontSize: '20px', fontWeight: '500', marginTop: '4px', letterSpacing: '-0.02em' }}>Beheer en deel je digitale sessies.</p></div>
             <div style={{ display: 'flex', gap: '12px' }}>
-              <input type="file" id="import-json" accept=".json" onChange={handleImportJSON} style={{ display: 'none' }} />
+              <input type="file" id="import-json" accept=".exam" onChange={handleImportJSON} style={{ display: 'none' }} />
               <label htmlFor="import-json" className="btn btn-secondary" style={{ height: '48px', padding: '0 28px', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                <Upload size={20} /> Importeer JSON
-              </label>
-              <button className="btn" style={{ height: '48px', padding: '0 28px', fontSize: '16px' }} onClick={handleStartCreate}><Plus size={20} /> Nieuwe Toets</button>
+                <Upload size={20} /> Importeer
+              </label>              <button className="btn" style={{ height: '48px', padding: '0 28px', fontSize: '16px' }} onClick={handleStartCreate}><Plus size={20} /> Nieuwe Toets</button>
             </div>
           </header>
 
@@ -839,8 +838,7 @@ export default function TeacherDashboard() {
                                 <div style={{ height: '1px', background: '#f5f5f7', margin: '4px 0' }} />
                                 <button style={dropdownItemStyle} onClick={() => navigate(`/teacher/results/${exam.id}`)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><BarChart3 size={14}/> Inzendingen ({exam.submissionCount})</button>
                                 <button style={dropdownItemStyle} onClick={() => handleQuickPreview(exam)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><Eye size={14}/> Preview</button>
-                                <button style={dropdownItemStyle} onClick={() => handleExportJSON(exam)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><FileJson size={14}/> Exporteer JSON</button>
-                                <button style={dropdownItemStyle} onClick={() => handleDuplicate(exam)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><Copy size={14}/> Kopieer</button>
+                                <button style={dropdownItemStyle} onClick={() => handleExportJSON(exam)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><FileJson size={14}/> Exporteer</button>                                <button style={dropdownItemStyle} onClick={() => handleDuplicate(exam)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><Copy size={14}/> Kopieer</button>
                                 <button style={dropdownItemStyle} onClick={() => handleToggleShare(exam)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><Share2 size={14}/> {exam.isShared ? 'Niet meer delen' : 'Delen met collega\'s'}</button>
                                 <button style={dropdownItemStyle} onClick={() => window.open(`/teacher/print/${exam.exam_key}`)} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--system-secondary-bg)'} onMouseLeave={(e) => e.currentTarget.style.background = 'none'}><Printer size={14}/> Afdrukken</button>
                                 <div style={{ height: '1px', background: '#f5f5f7', margin: '4px 0' }} />
