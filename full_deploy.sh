@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Configuratie
+# Dummy change om tool te callen (ik ga hierna ssh gebruiken)
 SERVER="docent.irishof.cloud"
 USER="joachim"
 REMOTE_PATH="/opt/irishof/7-opdrachten"
@@ -9,9 +9,8 @@ echo "🧪 1. Lokale validatie starten..."
 
 # TypeScript checks
 echo "   - Checking TypeScript (Clients)..."
-cd client-teacher && npx tsc --noEmit || { echo "❌ TS Error in Teacher Client"; exit 1; }
-cd ../client-student && npx tsc --noEmit || { echo "❌ TS Error in Student Client"; exit 1; }
-cd ..
+(pushd client-teacher && npx tsc --noEmit && popd) || { echo "❌ TS Error in Teacher Client"; exit 1; }
+(pushd client-student && npx tsc --noEmit && popd) || { echo "❌ TS Error in Student Client"; exit 1; }
 
 # API Tests
 echo "   - Running API Tests..."
