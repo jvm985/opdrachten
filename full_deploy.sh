@@ -3,7 +3,7 @@
 # Configuratie
 SERVER="docent.irishof.cloud"
 USER="joachim"
-REMOTE_PATH="/home/joachim/apps/opdrachten"
+REMOTE_PATH="/opt/irishof/7-opdrachten"
 
 echo "🧪 1. Lokale validatie starten..."
 
