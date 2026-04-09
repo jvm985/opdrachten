@@ -9,7 +9,14 @@ services:
       - ./server/public/photos:/app/public/photos
     environment:
       - NODE_ENV=production
-    restart: always
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          memory: 128M
 
   frontend:
     image: nginx:alpine
@@ -22,4 +29,11 @@ services:
       - ./client-student/dist:/usr/share/nginx/html/student:ro
     depends_on:
       - api
-    restart: always
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          memory: 64M
