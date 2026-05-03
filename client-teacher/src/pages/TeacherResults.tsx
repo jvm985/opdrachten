@@ -477,7 +477,7 @@ export default function TeacherResults() {
           {parts.map((part, i) => {
             if (part.startsWith('{') && part.endsWith('}')) {
               const expected = part.slice(1, -1).toLowerCase().trim();
-              const studentVal = (answer?.[part] || '').toLowerCase().trim();
+              const studentVal = String(answer?.[i] ?? '').toLowerCase().trim();
               const isCorrect = expected === studentVal;
               return <span key={i} style={{ padding: '2px 8px', borderRadius: '6px', background: isCorrect ? '#f0fdf4' : '#fff1f2', color: isCorrect ? '#166534' : '#991b1b', fontWeight: '700', margin: '0 4px', border: '1px solid', borderColor: isCorrect ? '#22c55e' : '#ef4444' }}>{studentVal || '___'}{!isCorrect && <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '4px' }}>({expected})</span>}</span>;
             }
