@@ -390,11 +390,11 @@ export default function TeacherResults() {
     }
 
     if (q.type === 'matching') {
-      const studentAnswers = answer || {};
+      const studentArr: any[] = Array.isArray(answer) ? answer : [];
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {q.matchingPairs?.map(pair => {
-            const studentVal = studentAnswers[pair.id];
+          {q.matchingPairs?.map((pair, i) => {
+            const studentVal = studentArr[i]?.text ?? '';
             const isCorrect = studentVal === pair.right;
             return (
               <div key={pair.id} style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
